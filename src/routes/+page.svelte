@@ -11,7 +11,7 @@
 			id: 'email',
 			key: 'email',
 			value: '',
-			errorMessage: ''
+			errorMessage: '',
 		},
 		{
 			label: 'Password',
@@ -20,7 +20,7 @@
 			id: 'password',
 			key: 'password',
 			value: '',
-			errorMessage: ''
+			errorMessage: '',
 		}
 	];
 
