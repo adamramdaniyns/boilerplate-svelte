@@ -5,8 +5,6 @@
 	import * as Dialog from '@/components/ui/dialog';
 	import Input from '@/components/ui/input/input.svelte';
 	import Label from '@/components/ui/label/label.svelte';
-	import * as Alert from '@/components/ui/alert';
-	// import CheckCircle2Icon from 'lucide-svelte/icons/check-circle-2';
 
 	// Props
 	export let fields: Array<{
@@ -32,8 +30,13 @@
 	export let onUpdateSubmit: (
 		id: string | number | null,
 		values: Record<string, unknown>
-	) => Promise<{ success: boolean; data?: unknown; error?: string }> = () =>
-		Promise.resolve({ success: true });
+	) => Promise<{
+		success: boolean;
+		data?: unknown;
+		error?: string;
+		message?: string;
+		description?: string;
+	}> = () => Promise.resolve({ success: true });
 	export let onDeleteSubmit: (
 		id: string | number | null
 	) => Promise<{ success: boolean; data?: unknown; error?: string }> = () =>
@@ -122,6 +125,35 @@
 			isLoading = false;
 		}
 	}
+
+	async function handleSubmitUpdate(id: string | number | null) {
+		if (id === null) return;
+
+		fields = fields.map((f) => ({
+			...f,
+			errorMessage: f.required !== false && !f.value?.trim() ? `${f.label} cannot be empty.` : ''
+		}));
+		if (fields.some((f) => f.errorMessage)) return;
+
+		const values = fields.reduce((acc, f) => ({ ...acc, [f.key]: f.value }), {});
+		isLoading = true;
+
+		try {
+			const res = await onUpdateSubmit(id, values);
+			if (res.success) {
+				showToast(res.message || 'Update Successful', res.description || '', 'success');
+				openUpdateModal = false;
+				selectedRowId = null;
+				fields = fields.map((f) => ({ ...f, value: '' }));
+			} else {
+				showToast(res.message || 'Update Failed', res.error || 'An error occurred', 'error');
+			}
+		} catch (e) {
+			showToast('Update Failed', String(e), 'error');
+		} finally {
+			isLoading = false;
+		}
+	}
 </script>
 
 <div class="flex gap-1">
@@ -166,7 +198,10 @@
 		{#each data as row (row.id)}
 			<Table.Row
 				class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
-				onclick={() => (selectedRowId = row.id as null)}
+				onclick={() => {
+					selectedRowId = row.id as string;
+					selectedRow = row;
+				}}
 			>
 				{#each fields as field}
 					<Table.Cell>{row[field.key]}</Table.Cell>
@@ -220,6 +255,104 @@
 					}}
 				>
 					{submitButtonText}
+				</Button>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
+{/if}
+
+<!-- Modal Update -->
+{#if openUpdateModal}
+	<Dialog.Root open={openUpdateModal} onOpenChange={(open) => (openUpdateModal = open)}>
+		<Dialog.Content>
+			<Dialog.Header>
+				<Dialog.Title>{updateTitle}</Dialog.Title>
+			</Dialog.Header>
+			<Dialog.Description>Update the details of the selected entry.</Dialog.Description>
+			<form on:submit|preventDefault={() => handleSubmitUpdate(selectedRowId)} id="update-form">
+				<div class="grid gap-4 py-4">
+					{#each fields as field}
+						<div class="grid grid-cols-4 items-center gap-4">
+							<Label for={field.id as string} class="text-right">{field.label}</Label>
+							<Input
+								id={field.id as string}
+								value={selectedRow ? selectedRow[field.key] : ''}
+								class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
+								placeholder={field.label}
+							/>
+						</div>
+						{#if field.errorMessage}
+							<p class="text-right text-sm text-red-500">{field.errorMessage}</p>
+						{/if}
+					{/each}
+				</div>
+			</form>
+
+			<Dialog.Footer>
+				<Button
+					type="submit"
+					onclick={() => {
+						const form = document.getElementById('update-form') as HTMLFormElement;
+						if (form) form.requestSubmit();
+					}}
+					disabled={isLoading || selectedRowId === null}
+				>
+					Update
+				</Button>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
+{/if}
+
+<!-- Modal delete -->
+{#if openDeleteModal}
+	<Dialog.Root open={openDeleteModal} onOpenChange={(open) => (openDeleteModal = open)}>
+		<Dialog.Content>
+			<Dialog.Header>
+				<Dialog.Title>{deleteTitle}</Dialog.Title>
+			</Dialog.Header>
+			<Dialog.Description>Are you sure you want to delete this entry?</Dialog.Description>
+
+			<Dialog.Footer>
+				<Button
+					onclick={() => {
+						openDeleteModal = false;
+						handleDelete();
+					}}
+					variant="destructive"
+					disabled={isLoading || selectedRowId === null}
+				>
+					Delete
+				</Button>
+				<Button onclick={() => (openDeleteModal = false)} disabled={isLoading}>
+					Cancel
+				</Button>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
+{/if}
+
+<!-- Modal Detail -->
+{#if openDetailModal}
+	<Dialog.Root open={openDetailModal} onOpenChange={(open) => (openDetailModal = open)}>
+		<Dialog.Content>
+			<Dialog.Header>
+				<Dialog.Title>{detailTitle}</Dialog.Title>
+			</Dialog.Header>
+			<Dialog.Description>Details of the selected entry.</Dialog.Description>
+
+			<div class="grid gap-4 py-4">
+				{#each fields as field}
+					<div class="grid grid-cols-4 items-center gap-4">
+						<Label for={field.id as string} class="text-right">{field.label}</Label>
+						<p class="col-span-3">{selectedRow ? selectedRow[field.key] : 'N/A'}</p>
+					</div>
+				{/each}
+			</div>
+
+			<Dialog.Footer>
+				<Button onclick={() => (openDetailModal = false)} disabled={isLoading}>
+					Close
 				</Button>
 			</Dialog.Footer>
 		</Dialog.Content>
