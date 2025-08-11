@@ -185,7 +185,7 @@
 
 <!-- Modal Create -->
 {#if openCreateModal}
-	<Dialog.Root open={openCreateModal}>
+	<Dialog.Root open={openCreateModal} onOpenChange={(open) => (openCreateModal = open)}>
 		<Dialog.Content>
 			<Dialog.Header>
 				<Dialog.Title>{createTitle}</Dialog.Title>
