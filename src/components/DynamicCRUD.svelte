@@ -234,6 +234,7 @@
 							<Input
 								id={field.id as string}
 								value={field.value}
+								type={field.type}
 								class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
 								placeholder={field.label}
 							/>
