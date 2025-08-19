@@ -1,7 +1,7 @@
 <script lang="ts">
 	import AppInput from './AppInput.svelte';
 
-	export let fields: DefaultType = [];
+	export let fields: DefaultType[] = [];
 	export let formTitle = 'Form Title';
 	export let onSubmit: () => Promise<void> = () => Promise.resolve();
 	export let submitButtonText = 'Submit';
@@ -16,7 +16,7 @@
 	async function handleSubmit() {
 		fields = fields.map((field) => {
 			const isEmpty = field.value.trim() === '';
-			const isRequired = field?.required !== false;
+			const isRequired = field.validation?.required !== false;
 
 			return {
 				...field,

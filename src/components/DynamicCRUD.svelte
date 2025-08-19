@@ -5,18 +5,12 @@
 	import * as Dialog from '@/components/ui/dialog';
 	import Input from '@/components/ui/input/input.svelte';
 	import Label from '@/components/ui/label/label.svelte';
+	import * as DropdownMenu from '@/components/ui/dropdown-menu';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import { onMount } from 'svelte';
 
 	// Props
-	export let fields: Array<{
-		id: string | number;
-		key: string;
-		label: string;
-		value?: string;
-		required?: boolean;
-		errorMessage?: string;
-		options?: { hideTable?: boolean };
-		type: string;
-	}> = [];
+	export let fields: DefaultType[] = [];
 
 	export let formTitle = 'Form Title';
 	export let tableTitle = 'Data Table';
@@ -61,6 +55,15 @@
 	export let customComponent = { create: false, update: false, delete: false, detail: false };
 	export let data: Record<string, unknown>[] = [];
 
+	export let onGetData = (page: number = 1, limit: number = 5, filter: Filter) => {
+		return Promise.resolve({
+			rows: data,
+			totalRows: data.length,
+			page: 1,
+			limit: 5
+		});
+	};
+
 	// State
 	let openCreateModal = false;
 	let openUpdateModal = false;
@@ -69,6 +72,52 @@
 	let selectedRowId: string | number | null = null;
 	let isLoading = false;
 	let selectedRow: Record<string, unknown> | null = null;
+	let totalRows = 0;
+	let page = 1;
+	let loadingData = false;
+	let limit = 5;
+
+	let totalPages = 0;
+	$: totalPages = Math.ceil(totalRows / limit);
+
+	// state for filter data
+	let filter: Filter = {
+		key: '',
+		keyWords: '',
+		sort: {
+			field: '',
+			order: 'asc'
+		}
+	};
+
+	// Debounce state
+	let debounceTimeout: ReturnType<typeof setTimeout>;
+
+	async function fetchData() {
+		try {
+			loadingData = true;
+			const res = await onGetData(page, limit, filter);
+			if (res) {
+				data = res.rows;
+				totalRows = res.totalRows;
+				page = res.page || 1;
+				limit = res.limit || 5;
+			} else {
+				data = [];
+				totalRows = 0;
+				page = 1;
+				limit = 5;
+			}
+		} catch (e) {
+			showToast('Fetch Data Failed', String(e), 'error');
+		} finally {
+			loadingData = false;
+		}
+	}
+
+	onMount(() => {
+		fetchData();
+	});
 
 	function handleCreate() {
 		if (canCreate) {
@@ -100,14 +149,66 @@
 		}
 	}
 
+	function capitalizeWord(text: string) {
+		return text.charAt(0).toUpperCase() + text.slice(1);
+	}
+
+	function handleCloseModal(type: 'create' | 'update' | 'delete' | 'detail') {
+		if (type === 'create') {
+			openCreateModal = false;
+		} else if (type === 'update') {
+			openUpdateModal = false;
+			selectedRowId = null;
+		} else if (type === 'delete') {
+			openDeleteModal = false;
+			selectedRowId = null;
+		} else if (type === 'detail') {
+			openDetailModal = false;
+			selectedRowId = null;
+			selectedRow = null;
+		}
+
+		// remove error messages
+		fields = fields.map((f) => ({ ...f, errorMessage: '' }));
+	}
+
+	// this for validation handler
+	function validation() {
+		fields = fields.map((f) => {
+			let errorMessage = '';
+
+			// Required
+			if ((f.validation?.required ?? true) && !f.value?.trim()) {
+				errorMessage = f.validation?.message?.[0] || `${f.label} cannot be empty.`;
+			}
+			// Min Length
+			else if (f.validation?.minLength && f.value.length < f.validation.minLength) {
+				errorMessage =
+					f.validation.message?.[1] ||
+					`${f.label} must be at least ${f.validation.minLength} characters long.`;
+			}
+			// Pattern
+			else if (f.validation?.pattern && !f.validation.pattern.test(f.value)) {
+				errorMessage =
+					f.validation.message?.[2] || f.validation.message?.[1] || `${f.label} is not valid.`;
+			}
+
+			return { ...f, errorMessage };
+		});
+
+		// add more validation rules as needed
+
+		if (fields.some((f) => f.errorMessage)) return true;
+
+		return false;
+	}
+
 	async function handleSubmitCreate() {
-		fields = fields.map((f) => ({
-			...f,
-			errorMessage: f.required !== false && !f.value?.trim() ? `${f.label} cannot be empty.` : ''
-		}));
-		if (fields.some((f) => f.errorMessage)) return;
+		const isHasError = validation();
+		if (isHasError) return;
 
 		const values = fields.reduce((acc, f) => ({ ...acc, [f.key]: f.value }), {});
+
 		isLoading = true;
 
 		try {
@@ -129,11 +230,9 @@
 	async function handleSubmitUpdate(id: string | number | null) {
 		if (id === null) return;
 
-		fields = fields.map((f) => ({
-			...f,
-			errorMessage: f.required !== false && !f.value?.trim() ? `${f.label} cannot be empty.` : ''
-		}));
-		if (fields.some((f) => f.errorMessage)) return;
+		// validate fields
+		const isHasError = validation();
+		if (isHasError) return;
 
 		const values = fields.reduce((acc, f) => ({ ...acc, [f.key]: f.value }), {});
 		isLoading = true;
@@ -156,38 +255,83 @@
 	}
 </script>
 
-<div class="flex gap-1">
-	{#if canCreate}
-		<Button onclick={handleCreate} disabled={isLoading}>
-			{createTitle}
-		</Button>
-	{/if}
+<div class="mb-4 flex items-center justify-between">
+	<div class="flex gap-1">
+		{#if canCreate}
+			<Button onclick={handleCreate} disabled={isLoading}>
+				{createTitle}
+			</Button>
+		{/if}
 
-	{#if canUpdate}
-		<Button onclick={handleUpdate} disabled={isLoading || selectedRowId === null}>
-			{updateTitle}
-		</Button>
-	{/if}
+		{#if canUpdate}
+			<Button onclick={handleUpdate} disabled={isLoading || selectedRowId === null}>
+				{updateTitle}
+			</Button>
+		{/if}
 
-	{#if canDelete}
-		<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
-			{deleteTitle}
-		</Button>
-	{/if}
+		{#if canDelete}
+			<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
+				{deleteTitle}
+			</Button>
+		{/if}
 
-	{#if canDetail}
-		<Button onclick={handleDetail} disabled={isLoading || selectedRowId === null}>
-			{detailTitle}
-		</Button>
-	{/if}
+		{#if canDetail}
+			<Button onclick={handleDetail} disabled={isLoading || selectedRowId === null}>
+				{detailTitle}
+			</Button>
+		{/if}
+	</div>
+
+	<div class="flex items-center gap-2">
+		<Input
+			type="text"
+			placeholder="Search..."
+			class="max-ws-sm"
+			oninput={(e) => {
+				const searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
+				filter.keyWords = searchTerm;
+				if (debounceTimeout) clearTimeout(debounceTimeout);
+				debounceTimeout = setTimeout(() => {
+					fetchData();
+				}, 300);
+			}}
+		/>
+
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<Button {...props} variant="outline" size="sm">
+						{capitalizeWord(filter.key) || 'All'}
+						<ChevronDownIcon class="ml-4 size-4" />
+					</Button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end">
+				<!-- Only show when field can filter -->
+				{#each fields as field (field.id)}
+					{#if field.options && field.options.canFilter && field.options.canFilter}
+						<DropdownMenu.CheckboxItem
+							checked={filter.key === field.key}
+							onCheckedChange={(checked) => {
+								if (checked) {
+									filter.key = field.key;
+								} else {
+									filter.key = '';
+								}
+							}}
+						>
+							{field.label}
+						</DropdownMenu.CheckboxItem>
+					{/if}
+				{/each}
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	</div>
 </div>
 <Table.Root>
-	<Table.Caption>
-		{tableTitle}
-	</Table.Caption>
-
 	<Table.Header>
 		<Table.Row>
+			<Table.Head>No</Table.Head>
 			{#each fields as field}
 				<Table.Head>{field.label}</Table.Head>
 			{/each}
@@ -195,32 +339,109 @@
 	</Table.Header>
 
 	<Table.Body>
-		{#each data as row (row.id)}
-			<Table.Row
-				class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
-				onclick={() => {
-					selectedRowId = row.id as string;
-					selectedRow = row;
-				}}
-			>
-				{#each fields as field}
-					<Table.Cell>{row[field.key]}</Table.Cell>
-				{/each}
-			</Table.Row>
-		{/each}
-		{#if data.length === 0}
+		{#if loadingData}
 			<Table.Row>
-				<Table.Cell colspan={fields.length + 1} class="text-center text-gray-500">
+				<Table.Cell colspan={fields.length + 2} class="text-center">
+					<span class="animate-pulse"> Loading... </span>
+				</Table.Cell>
+			</Table.Row>
+		{:else if data.length === 0}
+			<Table.Row>
+				<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
 					No data available
 				</Table.Cell>
 			</Table.Row>
+		{:else if data.length > 0}
+			{#each data as row, i (row.id)}
+				<Table.Row
+					class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
+					onclick={() => {
+						selectedRowId = row.id as string;
+						selectedRow = row;
+					}}
+				>
+					<Table.Cell>{(page - 1) * limit + i + 1}</Table.Cell>
+					{#each fields as field}
+						<Table.Cell>{row[field.key]}</Table.Cell>
+					{/each}
+				</Table.Row>
+			{/each}
 		{/if}
 	</Table.Body>
 </Table.Root>
 
+<!-- Pagination -->
+<div class="flex items-center justify-end space-x-2 pt-4">
+	<div class="flex-1 text-sm text-muted-foreground">
+		{data.length} of {totalRows} entries
+	</div>
+	<div class="space-x-2">
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<Button {...props} variant="outline" size="sm">
+						{limit || 'Limit'}
+						<ChevronDownIcon class="ml-4 size-4" />
+					</Button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end">
+				{#each [5, 10, 15, 20, 100] as item}
+					<DropdownMenu.CheckboxItem
+						checked={limit === item}
+						onCheckedChange={(checked) => {
+							if (checked) {
+								limit = item;
+								fetchData();
+							}
+						}}
+					>
+						{item} entries
+					</DropdownMenu.CheckboxItem>
+				{/each}
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+
+		<Button
+			variant="outline"
+			size="sm"
+			disabled={page <= 1}
+			onclick={() => {
+				if (page > 1) {
+					page -= 1;
+					fetchData();
+				}
+			}}
+		>
+			Previous
+		</Button>
+		<Button
+			variant="outline"
+			size="sm"
+			disabled={page >= totalPages}
+			onclick={() => {
+				if (page < totalPages) {
+					page += 1;
+					fetchData();
+				}
+			}}
+		>
+			Next
+		</Button>
+	</div>
+</div>
+
 <!-- Modal Create -->
 {#if openCreateModal}
-	<Dialog.Root open={openCreateModal} onOpenChange={(open) => (openCreateModal = open)}>
+	<Dialog.Root
+		open={openCreateModal}
+		onOpenChange={(open) => {
+			if (!open) {
+				handleCloseModal('create');
+			}
+			openCreateModal = open;
+		}}
+	>
 		<Dialog.Content>
 			<Dialog.Header>
 				<Dialog.Title>{createTitle}</Dialog.Title>
@@ -233,7 +454,7 @@
 							<Label for={field.id as string} class="text-right">{field.label}</Label>
 							<Input
 								id={field.id as string}
-								value={field.value}
+								bind:value={field.value}
 								type={field.type}
 								class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
 								placeholder={field.label}
@@ -245,7 +466,6 @@
 					{/each}
 				</div>
 			</form>
-
 			<Dialog.Footer>
 				<Button
 					type="submit"
@@ -264,7 +484,15 @@
 
 <!-- Modal Update -->
 {#if openUpdateModal}
-	<Dialog.Root open={openUpdateModal} onOpenChange={(open) => (openUpdateModal = open)}>
+	<Dialog.Root
+		open={openUpdateModal}
+		onOpenChange={(open) => {
+			if (!open) {
+				handleCloseModal('update');
+			}
+			openUpdateModal = open;
+		}}
+	>
 		<Dialog.Content>
 			<Dialog.Header>
 				<Dialog.Title>{updateTitle}</Dialog.Title>
@@ -325,9 +553,7 @@
 				>
 					Delete
 				</Button>
-				<Button onclick={() => (openDeleteModal = false)} disabled={isLoading}>
-					Cancel
-				</Button>
+				<Button onclick={() => handleCloseModal('delete')} disabled={isLoading}>Cancel</Button>
 			</Dialog.Footer>
 		</Dialog.Content>
 	</Dialog.Root>
@@ -352,9 +578,7 @@
 			</div>
 
 			<Dialog.Footer>
-				<Button onclick={() => (openDetailModal = false)} disabled={isLoading}>
-					Close
-				</Button>
+				<Button onclick={() => handleCloseModal('detail')} disabled={isLoading}>Close</Button>
 			</Dialog.Footer>
 		</Dialog.Content>
 	</Dialog.Root>

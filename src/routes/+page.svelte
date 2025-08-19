@@ -1,9 +1,7 @@
 <script lang="ts">
-	import { updated } from '$app/state';
-	import Button from '@/components/ui/button/button.svelte';
 	import DynamicCrud from '../components/DynamicCRUD.svelte';
 
-	let fields: DefaultType = [
+	let fields: DefaultType[] = [
 		{
 			label: 'Email',
 			type: 'email',
@@ -12,6 +10,12 @@
 			key: 'email',
 			value: '',
 			errorMessage: '',
+			options: {
+				canFilter: true,
+			},
+			validation: {
+				required: false,
+			}
 		},
 		{
 			label: 'Password',
@@ -24,6 +28,8 @@
 		}
 	];
 
+	let data: any = [];
+
 	async function handleSubmit() {
 		console.log(
 			'Form submitted with values:',
@@ -33,14 +39,41 @@
 		return {
 			success: true,
 			data: fields,
-			message: 'Login successful'
+			message: 'Login Success'
 		};
 	}
 
 	const dummyDataUser = [
 		{ id: 1, email: 'user1@example.com', password: 'password1' },
-		{ id: 2, email: 'user2@example.com', password: 'password2' }
+		{ id: 2, email: 'user2@example.com', password: 'password2' },
+		{ id: 3, email: 'user3@example.com', password: 'password3' },
+		{ id: 4, email: 'user4@example.com', password: 'password4' },
+		{ id: 5, email: 'user5@example.com', password: 'password5' },
+		{ id: 6, email: 'user6@example.com', password: 'password6' },
+		{ id: 7, email: 'user7@example.com', password: 'password7' },
+		{ id: 8, email: 'user8@example.com', password: 'password8' },
+		{ id: 9, email: 'user9@example.com', password: 'password9' },
+		{ id: 10, email: 'user10@example.com', password: 'password10' },
 	];
+
+	const fetchData = async (page?: number, limit?: number, filter?: Filter) => {
+		const currentPage = page ?? 1;
+		const currentLimit = limit ?? 5;
+		console.log(filter);
+		
+		// Simulate fetching data from an API
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		// Here you would typically fetch data from your API
+		// For example: const response = await fetch('/api/users');
+		// const data = await response.json();
+		data = dummyDataUser.slice((currentPage - 1) * currentLimit, currentPage * currentLimit); // Assign fetched data to the data variable
+		return {
+			rows: data,
+			totalRows: dummyDataUser.length,
+			limit: currentLimit,
+			page: currentPage
+		};
+	};
 </script>
 
 <div class="p-4">
@@ -70,7 +103,8 @@
 			// you can using custom function
 			// for example using state for changes component
 		}}
-		data={dummyDataUser}
+		{data}
+		onGetData={fetchData}
 		formTitle="Login Form"
 		onCreateSubmit={handleSubmit}
 		submitButtonText="Login"

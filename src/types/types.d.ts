@@ -6,9 +6,25 @@ type DefaultType = {
 	key: string;
 	value: string;
 	errorMessage: string;
-	required?: boolean;
-	options?: { 
+	options?: {
 		hideInput?: boolean;
 		hideTable?: boolean;
-	 };
-}[];
+		canFilter?: boolean;
+	};
+	validation?: {
+		required?: boolean;
+		minLength?: number;
+		maxLength?: number;
+		pattern?: RegExp;
+		message?: [string?, string?, string?];
+	}
+};
+
+type Filter = {
+	key: string;
+	keyWords: string;
+	sort: {
+		field: string;
+		order: 'asc' | 'desc';
+	};
+};

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import AppForm from '../../components/AppForm.svelte';
 
-	let fields: DefaultType = [
+	let fields: DefaultType[] = [
 		{
 			label: 'Email',
 			type: 'email',
