@@ -1,5 +1,5 @@
 <script lang="ts">
-	import DynamicCrud from '../components/DynamicCRUD.svelte';
+	import DynamicCrud from '../../components/DynamicCRUD.svelte';
 
 	let fields: DefaultType[] = [
 		{
@@ -80,10 +80,13 @@
 	<DynamicCrud
 		{fields}
 		customComponent={{
-			create: false, // custom component for create action
-			update: false, // custom component for update action
-			delete: false, // custom component for delete action
-			detail: false // custom component for detail action
+			create: true, // custom component for create action
+			update: true, // custom component for update action
+			delete: true, // custom component for delete action
+			detail: true // custom component for detail action
+		}}
+		onCreate={() => {
+			
 		}}
 		onUpdate={(id) => {
 			// default action for update

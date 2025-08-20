@@ -7,7 +7,17 @@
 	import Label from '@/components/ui/label/label.svelte';
 	import * as DropdownMenu from '@/components/ui/dropdown-menu';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import { onMount } from 'svelte';
+	import { onMount, createEventDispatcher } from 'svelte';
+	import { ArrowDownIcon, ArrowUpIcon } from '@lucide/svelte';
+
+	// dispatch
+	const dispatch = createEventDispatcher();
+
+	// when selecting a row
+	function handleRowSelect(row: Record<string, unknown>) {
+		selectedRow = row;
+		dispatch('rowSelect', row);
+	}
 
 	// Props
 	export let fields: DefaultType[] = [];
@@ -41,6 +51,10 @@
 	export let onDelete: (id: string | number | null) => void = () => {};
 	export let onDetail: (id: string | number | null) => void = () => {};
 
+	// Custom process
+	export let customProcess = false;
+	export let processComponent: any | null = null;
+
 	export let submitButtonText = 'Submit';
 	export let canCreate = true;
 	export let canUpdate = true;
@@ -51,6 +65,7 @@
 	export let updateTitle = 'Update';
 	export let deleteTitle = 'Delete';
 	export let detailTitle = 'Detail';
+	export let canMultiple = false;
 
 	export let customComponent = { create: false, update: false, delete: false, detail: false };
 	export let data: Record<string, unknown>[] = [];
@@ -147,6 +162,16 @@
 			if (customComponent.detail) return onDetail(selectedRowId);
 			openDetailModal = true;
 		}
+	}
+
+	function handleSort(field: string) {
+		if (filter.sort.field === field) {
+			filter.sort.order = filter.sort.order === 'asc' ? 'desc' : 'asc';
+		} else {
+			filter.sort.field = field;
+			filter.sort.order = 'asc';
+		}
+		fetchData();
 	}
 
 	function capitalizeWord(text: string) {
@@ -257,31 +282,39 @@
 
 <div class="w-full">
 	<div class="mb-4 flex items-center justify-between">
-		<div class="flex gap-1">
-			{#if canCreate}
-				<Button onclick={handleCreate} disabled={isLoading}>
-					{createTitle}
-				</Button>
+		{#if customProcess}
+			{#if processComponent}
+				<svelte:component this={processComponent} />
+			{:else}
+				<div>No custom process component provided</div>
 			{/if}
+		{:else}
+			<div class="flex gap-1">
+				{#if canCreate && !customProcess}
+					<Button onclick={handleCreate} disabled={isLoading}>
+						{createTitle}
+					</Button>
+				{/if}
 
-			{#if canUpdate}
-				<Button onclick={handleUpdate} disabled={isLoading || selectedRowId === null}>
-					{updateTitle}
-				</Button>
-			{/if}
+				{#if canUpdate && !customProcess}
+					<Button onclick={handleUpdate} disabled={isLoading || selectedRowId === null}>
+						{updateTitle}
+					</Button>
+				{/if}
 
-			{#if canDelete}
-				<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
-					{deleteTitle}
-				</Button>
-			{/if}
+				{#if canDelete && !customProcess}
+					<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
+						{deleteTitle}
+					</Button>
+				{/if}
 
-			{#if canDetail}
-				<Button onclick={handleDetail} disabled={isLoading || selectedRowId === null}>
-					{detailTitle}
-				</Button>
-			{/if}
-		</div>
+				{#if canDetail && !customProcess}
+					<Button onclick={handleDetail} disabled={isLoading || selectedRowId === null}>
+						{detailTitle}
+					</Button>
+				{/if}
+			</div>
+		{/if}
 
 		<div class="flex items-center gap-2">
 			<Input
@@ -329,47 +362,62 @@
 			</DropdownMenu.Root>
 		</div>
 	</div>
-	<Table.Root>
-		<Table.Header>
-			<Table.Row>
-				<Table.Head>No</Table.Head>
-				{#each fields as field}
-					<Table.Head>{field.label}</Table.Head>
-				{/each}
-			</Table.Row>
-		</Table.Header>
 
-		<Table.Body>
-			{#if loadingData}
+	<div class="rounded-md border">
+		<Table.Root>
+			<Table.Header>
 				<Table.Row>
-					<Table.Cell colspan={fields.length + 2} class="text-center">
-						<span class="animate-pulse"> Loading... </span>
-					</Table.Cell>
+					<Table.Head>No</Table.Head>
+					{#each fields as field}
+						<Table.Head onclick={() => handleSort(field.key)}>
+							<span class="flex items-center">
+								{field.label}
+								{#if filter.sort.field === field.key}
+									{#if filter.sort.order === 'asc'}
+										<ArrowUpIcon class="ml-2 h-4 w-4" />
+									{:else}
+										<ArrowDownIcon class="ml-2 h-4 w-4" />
+									{/if}
+								{/if}
+							</span>
+						</Table.Head>
+					{/each}
 				</Table.Row>
-			{:else if data.length === 0}
-				<Table.Row>
-					<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
-						No data available
-					</Table.Cell>
-				</Table.Row>
-			{:else if data.length > 0}
-				{#each data as row, i (row.id)}
-					<Table.Row
-						class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
-						onclick={() => {
-							selectedRowId = row.id as string;
-							selectedRow = row;
-						}}
-					>
-						<Table.Cell>{(page - 1) * limit + i + 1}</Table.Cell>
-						{#each fields as field}
-							<Table.Cell>{row[field.key]}</Table.Cell>
-						{/each}
+			</Table.Header>
+
+			<Table.Body>
+				{#if loadingData}
+					<Table.Row>
+						<Table.Cell colspan={fields.length + 2} class="text-center">
+							<span class="animate-pulse"> Loading... </span>
+						</Table.Cell>
 					</Table.Row>
-				{/each}
-			{/if}
-		</Table.Body>
-	</Table.Root>
+				{:else if data.length === 0}
+					<Table.Row>
+						<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
+							No data available
+						</Table.Cell>
+					</Table.Row>
+				{:else if data.length > 0}
+					{#each data as row, i (row.id)}
+						<Table.Row
+							class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
+							onclick={() => {
+								selectedRowId = row.id as string;
+								selectedRow = row;
+								handleRowSelect(row);
+							}}
+						>
+							<Table.Cell>{(page - 1) * limit + i + 1}</Table.Cell>
+							{#each fields as field}
+								<Table.Cell>{row[field.key]}</Table.Cell>
+							{/each}
+						</Table.Row>
+					{/each}
+				{/if}
+			</Table.Body>
+		</Table.Root>
+	</div>
 
 	<!-- Pagination -->
 	<div class="flex items-center justify-end space-x-2 pt-4">

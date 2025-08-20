@@ -1,61 +1,72 @@
 <script lang="ts">
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
-	import HouseIcon from '@lucide/svelte/icons/house';
-	import InboxIcon from '@lucide/svelte/icons/inbox';
-	import SearchIcon from '@lucide/svelte/icons/search';
-	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as Dropdown from '$lib/components/ui/dropdown-menu';
 	import { Rocket, User, CreditCard, Bell, LogOut, Package2, ChevronRight } from '@lucide/svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import AppLink from './AppLink.svelte';
+	import NavLink from './NavLink.svelte';
 
 	// Menu items.
 	const items = [
-		{
-			title: 'Home',
-			url: '#',
-			icon: HouseIcon
-		},
-		{
-			title: 'Inbox',
-			url: '#',
-			icon: InboxIcon
-		},
-		{
-			title: 'Calendar',
-			url: '#',
-			icon: CalendarIcon
-		},
-		{
-			title: 'Search',
-			url: '#',
-			icon: SearchIcon
-		},
-		{
-			title: 'Settings',
-			url: '#',
-			icon: SettingsIcon
-		},
 		{
 			title: 'Components',
 			url: '#',
 			icon: Package2,
 			subMenu: [
 				{
+					icon: CalendarIcon,
 					title: 'DynamicCRUD',
 					url: '/dynamic-crud'
 				},
 				{
+					icon: CalendarIcon,
 					title: 'DynamicCRUD With Custom Components',
 					url: '/dynamic-crud-custom'
+				},
+				{
+					icon: CalendarIcon,
+					title: 'DynamicCRUD With Custom Process',
+					url: '/dynamic-crud-custom-process'
+				},
+				{
+					icon: CalendarIcon,
+					title: 'DynamicCRUD With Multiple data',
+					url: '/dynamic-crud-custom-multiple-data'
 				}
 			]
 		}
 	];
 
-    let isOpen = false;
+	let openMenus: Record<string, boolean> = {};
+    
+	// Gunakan $page.url.pathname agar currentPath selalu reactive
+	$: currentPath = $page.url.pathname;
+
+	// Fungsi untuk cek apakah subMenu aktif
+	const isSubActive = (subItem: { url: string }) => subItem.url === currentPath;
+	// Fungsi untuk cek apakah group menu aktif
+	const isGroupActive = (item: (typeof items)[number]) => item.subMenu?.some((subItem) => isSubActive(subItem));
+
+	function toggleMenu(item: (typeof items)[number]) {
+		const isOpen = openMenus[item.title] ?? false;
+		openMenus = { ...openMenus, [item.title]: !isOpen };
+	}
+
+	$: {
+		let clone = { ...openMenus };
+		for (const item of items) {
+			if (item.subMenu && !(item.title in clone)) {
+				clone[item.title] = isGroupActive(item) ?? false;
+			}
+		}
+		openMenus = clone;
+	}
 </script>
+
 
 <Sidebar.Root>
 	<Sidebar.Header>
@@ -136,21 +147,22 @@
 					{#each items as item (item.title)}
 						{#if item.subMenu}
 							<Collapsible.Root>
-								<Collapsible.CollapsibleTrigger class="w-full text-sm" onclick={() => {
-                                    isOpen = !isOpen;
-                                }}>
-									<Sidebar.SidebarMenuItem class="group select-none w-full">
+								<Collapsible.CollapsibleTrigger
+									class="w-full text-sm"
+									onclick={() => toggleMenu(item)}
+								>
+									<Sidebar.SidebarMenuItem class="group w-full select-none">
 										<Sidebar.SidebarMenuButton class="w-full">
 											<div
-												class="flex cursor-pointer items-center w-full select-none gap-1 text-sm"
+												class="flex w-full cursor-pointer items-center gap-1 text-sm select-none"
 											>
 												<item.icon class="size-5" />
 												<span class="flex w-full items-center justify-between">
 													{item.title}
 													<ChevronRight
 														class={`h-4 w-4 transition-transform duration-200 
-                                                            ${isOpen ? 'rotate-90' : ''}
-                                                        `}
+															${openMenus[item.title] ? 'rotate-90' : ''}
+														`}
 													/>
 												</span>
 											</div>
@@ -160,10 +172,12 @@
 								<Collapsible.CollapsibleContent>
 									<Sidebar.MenuSub>
 										{#each item.subMenu as subItem}
-											<Sidebar.MenuSubItem class="hover:bg-gray-100 w-full p-2 rounded-md">
-												<a href={subItem.url} class="flex items-center">
-													<span>{subItem.title}</span>
-												</a>
+											<Sidebar.MenuSubItem
+												class={`w-full rounded-md p-2 hover:bg-gray-100 ${currentPath === subItem.url ? 'bg-gray-200' : ''}`}
+											>
+												<AppLink href={subItem.url}>
+													<NavLink subItem={subItem} />
+												</AppLink>
 											</Sidebar.MenuSubItem>
 										{/each}
 									</Sidebar.MenuSub>

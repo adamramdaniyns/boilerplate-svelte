@@ -1,5 +1,5 @@
 <script lang="ts">
-	import DynamicCrud from '../components/DynamicCRUD.svelte';
+	import DynamicCrud from '../../components/DynamicCRUD.svelte';
 
 	let fields: DefaultType[] = [
 		{
