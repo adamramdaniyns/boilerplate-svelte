@@ -255,179 +255,181 @@
 	}
 </script>
 
-<div class="mb-4 flex items-center justify-between">
-	<div class="flex gap-1">
-		{#if canCreate}
-			<Button onclick={handleCreate} disabled={isLoading}>
-				{createTitle}
-			</Button>
-		{/if}
+<div class="w-full">
+	<div class="mb-4 flex items-center justify-between">
+		<div class="flex gap-1">
+			{#if canCreate}
+				<Button onclick={handleCreate} disabled={isLoading}>
+					{createTitle}
+				</Button>
+			{/if}
 
-		{#if canUpdate}
-			<Button onclick={handleUpdate} disabled={isLoading || selectedRowId === null}>
-				{updateTitle}
-			</Button>
-		{/if}
+			{#if canUpdate}
+				<Button onclick={handleUpdate} disabled={isLoading || selectedRowId === null}>
+					{updateTitle}
+				</Button>
+			{/if}
 
-		{#if canDelete}
-			<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
-				{deleteTitle}
-			</Button>
-		{/if}
+			{#if canDelete}
+				<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
+					{deleteTitle}
+				</Button>
+			{/if}
 
-		{#if canDetail}
-			<Button onclick={handleDetail} disabled={isLoading || selectedRowId === null}>
-				{detailTitle}
-			</Button>
-		{/if}
+			{#if canDetail}
+				<Button onclick={handleDetail} disabled={isLoading || selectedRowId === null}>
+					{detailTitle}
+				</Button>
+			{/if}
+		</div>
+
+		<div class="flex items-center gap-2">
+			<Input
+				type="text"
+				placeholder="Search..."
+				class="max-ws-sm"
+				oninput={(e) => {
+					const searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
+					filter.keyWords = searchTerm;
+					if (debounceTimeout) clearTimeout(debounceTimeout);
+					debounceTimeout = setTimeout(() => {
+						fetchData();
+					}, 300);
+				}}
+			/>
+
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button {...props} variant="outline" size="sm">
+							{capitalizeWord(filter.key) || 'All'}
+							<ChevronDownIcon class="ml-4 size-4" />
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="end">
+					<!-- Only show when field can filter -->
+					{#each fields as field (field.id)}
+						{#if field.options && field.options.canFilter && field.options.canFilter}
+							<DropdownMenu.CheckboxItem
+								checked={filter.key === field.key}
+								onCheckedChange={(checked) => {
+									if (checked) {
+										filter.key = field.key;
+									} else {
+										filter.key = '';
+									}
+								}}
+							>
+								{field.label}
+							</DropdownMenu.CheckboxItem>
+						{/if}
+					{/each}
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		</div>
 	</div>
+	<Table.Root>
+		<Table.Header>
+			<Table.Row>
+				<Table.Head>No</Table.Head>
+				{#each fields as field}
+					<Table.Head>{field.label}</Table.Head>
+				{/each}
+			</Table.Row>
+		</Table.Header>
 
-	<div class="flex items-center gap-2">
-		<Input
-			type="text"
-			placeholder="Search..."
-			class="max-ws-sm"
-			oninput={(e) => {
-				const searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
-				filter.keyWords = searchTerm;
-				if (debounceTimeout) clearTimeout(debounceTimeout);
-				debounceTimeout = setTimeout(() => {
-					fetchData();
-				}, 300);
-			}}
-		/>
+		<Table.Body>
+			{#if loadingData}
+				<Table.Row>
+					<Table.Cell colspan={fields.length + 2} class="text-center">
+						<span class="animate-pulse"> Loading... </span>
+					</Table.Cell>
+				</Table.Row>
+			{:else if data.length === 0}
+				<Table.Row>
+					<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
+						No data available
+					</Table.Cell>
+				</Table.Row>
+			{:else if data.length > 0}
+				{#each data as row, i (row.id)}
+					<Table.Row
+						class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
+						onclick={() => {
+							selectedRowId = row.id as string;
+							selectedRow = row;
+						}}
+					>
+						<Table.Cell>{(page - 1) * limit + i + 1}</Table.Cell>
+						{#each fields as field}
+							<Table.Cell>{row[field.key]}</Table.Cell>
+						{/each}
+					</Table.Row>
+				{/each}
+			{/if}
+		</Table.Body>
+	</Table.Root>
 
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				{#snippet child({ props })}
-					<Button {...props} variant="outline" size="sm">
-						{capitalizeWord(filter.key) || 'All'}
-						<ChevronDownIcon class="ml-4 size-4" />
-					</Button>
-				{/snippet}
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="end">
-				<!-- Only show when field can filter -->
-				{#each fields as field (field.id)}
-					{#if field.options && field.options.canFilter && field.options.canFilter}
+	<!-- Pagination -->
+	<div class="flex items-center justify-end space-x-2 pt-4">
+		<div class="flex-1 text-sm text-muted-foreground">
+			{data.length} of {totalRows} entries
+		</div>
+		<div class="space-x-2">
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button {...props} variant="outline" size="sm">
+							{limit || 'Limit'}
+							<ChevronDownIcon class="ml-4 size-4" />
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="end">
+					{#each [5, 10, 15, 20, 100] as item}
 						<DropdownMenu.CheckboxItem
-							checked={filter.key === field.key}
+							checked={limit === item}
 							onCheckedChange={(checked) => {
 								if (checked) {
-									filter.key = field.key;
-								} else {
-									filter.key = '';
+									limit = item;
+									fetchData();
 								}
 							}}
 						>
-							{field.label}
+							{item} entries
 						</DropdownMenu.CheckboxItem>
-					{/if}
-				{/each}
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
-	</div>
-</div>
-<Table.Root>
-	<Table.Header>
-		<Table.Row>
-			<Table.Head>No</Table.Head>
-			{#each fields as field}
-				<Table.Head>{field.label}</Table.Head>
-			{/each}
-		</Table.Row>
-	</Table.Header>
-
-	<Table.Body>
-		{#if loadingData}
-			<Table.Row>
-				<Table.Cell colspan={fields.length + 2} class="text-center">
-					<span class="animate-pulse"> Loading... </span>
-				</Table.Cell>
-			</Table.Row>
-		{:else if data.length === 0}
-			<Table.Row>
-				<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
-					No data available
-				</Table.Cell>
-			</Table.Row>
-		{:else if data.length > 0}
-			{#each data as row, i (row.id)}
-				<Table.Row
-					class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
-					onclick={() => {
-						selectedRowId = row.id as string;
-						selectedRow = row;
-					}}
-				>
-					<Table.Cell>{(page - 1) * limit + i + 1}</Table.Cell>
-					{#each fields as field}
-						<Table.Cell>{row[field.key]}</Table.Cell>
 					{/each}
-				</Table.Row>
-			{/each}
-		{/if}
-	</Table.Body>
-</Table.Root>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
 
-<!-- Pagination -->
-<div class="flex items-center justify-end space-x-2 pt-4">
-	<div class="flex-1 text-sm text-muted-foreground">
-		{data.length} of {totalRows} entries
-	</div>
-	<div class="space-x-2">
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				{#snippet child({ props })}
-					<Button {...props} variant="outline" size="sm">
-						{limit || 'Limit'}
-						<ChevronDownIcon class="ml-4 size-4" />
-					</Button>
-				{/snippet}
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="end">
-				{#each [5, 10, 15, 20, 100] as item}
-					<DropdownMenu.CheckboxItem
-						checked={limit === item}
-						onCheckedChange={(checked) => {
-							if (checked) {
-								limit = item;
-								fetchData();
-							}
-						}}
-					>
-						{item} entries
-					</DropdownMenu.CheckboxItem>
-				{/each}
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
-
-		<Button
-			variant="outline"
-			size="sm"
-			disabled={page <= 1}
-			onclick={() => {
-				if (page > 1) {
-					page -= 1;
-					fetchData();
-				}
-			}}
-		>
-			Previous
-		</Button>
-		<Button
-			variant="outline"
-			size="sm"
-			disabled={page >= totalPages}
-			onclick={() => {
-				if (page < totalPages) {
-					page += 1;
-					fetchData();
-				}
-			}}
-		>
-			Next
-		</Button>
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={page <= 1}
+				onclick={() => {
+					if (page > 1) {
+						page -= 1;
+						fetchData();
+					}
+				}}
+			>
+				Previous
+			</Button>
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={page >= totalPages}
+				onclick={() => {
+					if (page < totalPages) {
+						page += 1;
+						fetchData();
+					}
+				}}
+			>
+				Next
+			</Button>
+		</div>
 	</div>
 </div>
 
