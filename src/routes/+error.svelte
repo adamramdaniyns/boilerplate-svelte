@@ -11,7 +11,7 @@
 		Oops
 	</h1>
 	<p class="mb-8 max-w-lg text-lg text-muted-foreground md:text-xl">
-		{page.error?.message || 'Maaf, halaman yang Anda cari tidak ada.'}
+		{page.error?.message || 'An unexpected error occurred.'}
 	</p>
 	<Button href="/" variant="default">Back</Button>
 </div>

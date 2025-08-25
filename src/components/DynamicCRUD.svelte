@@ -384,7 +384,7 @@
 	<div class="mb-4 flex items-center justify-between">
 		{#if customProcess}
 			{#if processComponent}
-				<svelte:component this={processComponent} />
+				<svelte:component this={processComponent} selectedRow={selectedRow} fields={fields} />
 			{:else}
 				<div>No custom process component provided</div>
 			{/if}

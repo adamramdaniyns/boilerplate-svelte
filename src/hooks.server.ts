@@ -1,7 +1,6 @@
 import type { HandleServerError } from '@sveltejs/kit';
 
 export const handleError: HandleServerError = ({ error, event, status }) => {
-  // --- DEBUGGING: Ini akan tampil di terminal server Anda ---
   console.error(`### hooks.server.ts: handleError triggered for ${event.url.pathname}`);
   console.error('### hooks.server.ts: RAW error object from SvelteKit:', error);
   console.error('### hooks.server.ts: RAW status from SvelteKit:', status);
@@ -14,19 +13,17 @@ export const handleError: HandleServerError = ({ error, event, status }) => {
   if (error && typeof error === 'object' && 'message' in error && (error as any).message) {
     clientErrorMessage = (error as any).message;
   } else if (clientErrorCode === 404) {
-    clientErrorMessage = 'Halaman tidak ditemukan.';
+    clientErrorMessage = 'Page not found';
   } else {
-    clientErrorMessage = 'Terjadi kesalahan tak terduga.';
+    clientErrorMessage = 'An unexpected error occurred.';
   }
 
-  // --- DEBUGGING: Ini akan tampil di terminal server Anda ---
   console.error('### hooks.server.ts: Returning error object to client:', {
     message: clientErrorMessage,
     status: clientErrorCode
   });
   // --------------------------------------------------------
 
-  // Mengembalikan objek error yang SvelteKit harapkan dan akan diteruskan ke +error.svelte
   return {
     message: clientErrorMessage,
     status: clientErrorCode,
