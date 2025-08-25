@@ -3,110 +3,214 @@
 
 	let fields: DefaultType[] = [
 		{
-			label: 'Email',
-			type: 'email',
-			placeholder: 'Enter your email',
-			id: 'email',
-			key: 'email',
+			label: 'Name',
+			type: 'text',
+			placeholder: 'Enter name',
+			id: 'name',
+			key: 'name',
 			value: '',
 			errorMessage: '',
 			options: {
-				canFilter: true,
+				canFilter: true
 			},
 			validation: {
-				required: false,
+				required: false
 			}
 		},
 		{
-			label: 'Password',
-			type: 'password',
-			placeholder: 'Enter your password',
-			id: 'password',
-			key: 'password',
-			value: '',
-			errorMessage: '',
+			label: "Year",
+			type: "text",
+			placeholder: "Enter the year",
+			id: "year",
+			key: "year",
+			value: "",
+			errorMessage: "",
+			options: {
+				canFilter: true,
+				hideTable: true
+			},
+			validation: {
+				required: false
+			}
 		}
 	];
 
+	interface formValue {
+		name: string;
+		year: string;
+	}
+
 	let data: any = [];
 
-	async function handleSubmit() {
-		console.log(
-			'Form submitted with values:',
-			fields.map((field) => ({ [field.label]: field.value }))
-		);
+	async function handleSubmit(values: formValue, refreshData: () => void): Promise<{
+		success: boolean;
+		data?: unknown;
+		error?: string;
+		message?: string;
+		description?: string;
+	}> {
 
+		const formBody = {
+			...values,
+			data: {
+				year: values.year
+			}
+		}
+
+		const res = await fetch('/api/examples', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(formBody)
+		});
+
+		if (!res.ok) {
+			const errorData = await res.json();
+			console.error('Error submitting form:', errorData);
+			return {
+				success: false,
+				error: errorData.error || 'Unknown error',
+				message: 'Failed to submit form'
+			};
+		}
+
+		const data = await res.json();
+
+		if (!data.success) {
+			console.error('Error in response:', data);
+			return {
+				success: false,
+				error: data.error || 'Unknown error',
+				message: 'Failed to submit form'
+			};
+		}
+
+		refreshData();
 		return {
 			success: true,
-			data: fields,
-			message: 'Login Success'
+			data: values,
+			message: data.message || 'Form submitted successfully',
 		};
 	}
 
-	const dummyDataUser = [
-		{ id: 1, email: 'user1@example.com', password: 'password1' },
-		{ id: 2, email: 'user2@example.com', password: 'password2' },
-		{ id: 3, email: 'user3@example.com', password: 'password3' },
-		{ id: 4, email: 'user4@example.com', password: 'password4' },
-		{ id: 5, email: 'user5@example.com', password: 'password5' },
-		{ id: 6, email: 'user6@example.com', password: 'password6' },
-		{ id: 7, email: 'user7@example.com', password: 'password7' },
-		{ id: 8, email: 'user8@example.com', password: 'password8' },
-		{ id: 9, email: 'user9@example.com', password: 'password9' },
-		{ id: 10, email: 'user10@example.com', password: 'password10' },
-	];
+	async function handleUpdate(id: string | number | null, values: formValue, refreshData: () => void) {
+		const formBody = {
+			...values,
+			id: id,
+			data: {
+				year: values.year as string
+			}
+		}
+
+		const res = await fetch(`/api/examples`, {
+			method: 'PUT',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(formBody)
+		});
+
+		if (!res.ok) {
+			const errorData = await res.json();
+			console.error('Error updating form:', errorData);
+			return {
+				success: false,
+				error: errorData.error || 'Unknown error',
+				message: 'Failed to update form'
+			};
+		}
+
+		const data = await res.json();
+
+		if (!data.success) {
+			console.error('Error in response:', data);
+			return {
+				success: false,
+				error: data.error || 'Unknown error',
+				message: 'Failed to update form'
+			};
+		}
+
+		refreshData();
+		return {
+			success: true,
+			data: values,
+			message: data.message || 'Form updated successfully',
+		};
+	}
+
+	async function handleDelete(id: string | number | null, refreshData: () => void): Promise<{
+		success: boolean;
+		data?: unknown;
+		error?: string;
+		message?: string;
+		description?: string;
+	}> {
+		if (id === null) {
+			return {
+				success: false,
+				error: 'No ID provided',
+				message: 'Failed to delete form'
+			};
+		}
+
+		const res = await fetch(`/api/examples`, {
+			method: 'DELETE',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ id })
+		});
+
+		if (!res.ok) {
+			const errorData = await res.json();
+			console.error('Error deleting form:', errorData);
+			return {
+				success: false,
+				error: errorData.error || 'Unknown error',
+				message: 'Failed to delete form'
+			};
+		}
+
+		const responseData = await res.json();
+
+		refreshData();
+		return {
+			success: true,
+			data: responseData.data,
+			message: responseData.message || 'Form deleted successfully',
+			description: responseData.description
+		};
+	}
 
 	const fetchData = async (page?: number, limit?: number, filter?: Filter) => {
-		const currentPage = page ?? 1;
-		const currentLimit = limit ?? 5;
-		console.log(filter);
-		
-		// Simulate fetching data from an API
-		await new Promise((resolve) => setTimeout(resolve, 1000));
-		// Here you would typically fetch data from your API
-		// For example: const response = await fetch('/api/users');
-		// const data = await response.json();
-		data = dummyDataUser.slice((currentPage - 1) * currentLimit, currentPage * currentLimit); // Assign fetched data to the data variable
-		return {
-			rows: data,
-			totalRows: dummyDataUser.length,
-			limit: currentLimit,
-			page: currentPage
-		};
+		let filterParams = '';
+		if (filter?.key) {
+			filterParams = `&key=${filter.key}&keywords=${encodeURIComponent(filter.keyWords)}`;
+		}
+		const res = await fetch(`/api/examples?page=${page}&limit=${limit}${filterParams}`);
+		if (!res.ok) throw new Error('Network response was not ok');
+		return await res.json();
 	};
 </script>
 
-<div class="p-4 ">
+<div class="p-4">
 	<DynamicCrud
 		{fields}
+		onGetData={fetchData}
+		dataKey="dataSample"
 		customComponent={{
 			create: false, // custom component for create action
 			update: false, // custom component for update action
 			delete: false, // custom component for delete action
 			detail: false // custom component for detail action
 		}}
-		onUpdate={(id) => {
-			// default action for update
-			// fill the fields with the data of the selected row
-			const selectedRow = dummyDataUser.find((user) => user.id === id);
-			if (selectedRow) {
-				fields = fields.map((field) => ({
-					...field,
-					value: String(selectedRow[field.key as keyof typeof selectedRow] ?? '')
-				}));
-			}
-
-			// or u can fetch the data from the server
-			// fetch(`/api/users/${id}`)
-
-			// or when using custom component
-			// you can using custom function
-			// for example using state for changes component
-		}}
 		{data}
-		onGetData={fetchData}
 		formTitle="Login Form"
 		onCreateSubmit={handleSubmit}
+		onUpdateSubmit={handleUpdate}
+		onDeleteSubmit={handleDelete}
 		submitButtonText="Login"
 		on:rowSelect={(event) => {
 			// on this event

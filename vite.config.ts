@@ -10,7 +10,7 @@ export default defineConfig({
 		}
 	},
 	optimizeDeps: {
-		include: ['bits-ui']
+		include: ['bits-ui', '@tanstack/svelte-query']
 	},
 	ssr: {
 		noExternal: ['bits-ui']

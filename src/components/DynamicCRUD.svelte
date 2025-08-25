@@ -1,14 +1,17 @@
 <script lang="ts">
 	import * as Table from '@/components/ui/table';
-	import { showToast } from '../stores/toast';
+	import { showToast, toast } from '../stores/toast';
 	import Button from '@/components/ui/button/button.svelte';
 	import * as Dialog from '@/components/ui/dialog';
 	import Input from '@/components/ui/input/input.svelte';
 	import Label from '@/components/ui/label/label.svelte';
 	import * as DropdownMenu from '@/components/ui/dropdown-menu';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import { onMount, createEventDispatcher } from 'svelte';
-	import { ArrowDownIcon, ArrowUpIcon } from '@lucide/svelte';
+	import { createEventDispatcher } from 'svelte';
+	import { SortAscIcon, SortDescIcon } from '@lucide/svelte';
+	import { createSvelteTable, FlexRender } from '@/components/ui/data-table';
+	import { getCoreRowModel } from '@tanstack/table-core';
+	import { createQuery } from '@tanstack/svelte-query';
 
 	// dispatch
 	const dispatch = createEventDispatcher();
@@ -18,13 +21,14 @@
 		selectedRow = row;
 		dispatch('rowSelect', row);
 	}
+	
 
 	// Props
 	export let fields: DefaultType[] = [];
 
 	export let formTitle = 'Form Title';
 	export let tableTitle = 'Data Table';
-	export let onCreateSubmit: (values: Record<string, unknown>) => Promise<{
+	export let onCreateSubmit: (values: any, refetch: () => void) => Promise<{
 		success: boolean;
 		data?: unknown;
 		error?: string;
@@ -33,7 +37,8 @@
 	}> = () => Promise.resolve({ success: true });
 	export let onUpdateSubmit: (
 		id: string | number | null,
-		values: Record<string, unknown>
+		values: any,
+		refreshData: () => void
 	) => Promise<{
 		success: boolean;
 		data?: unknown;
@@ -42,8 +47,15 @@
 		description?: string;
 	}> = () => Promise.resolve({ success: true });
 	export let onDeleteSubmit: (
-		id: string | number | null
-	) => Promise<{ success: boolean; data?: unknown; error?: string }> = () =>
+		id: string | number | null,
+		refreshData: () => void
+	) => Promise<{ 
+		success: boolean;
+		data?: unknown;
+		error?: string,
+		message?: string;
+		description?: string;
+	 }> = () =>
 		Promise.resolve({ success: true });
 
 	export let onCreate: () => void = () => {};
@@ -66,18 +78,16 @@
 	export let deleteTitle = 'Delete';
 	export let detailTitle = 'Detail';
 	export let canMultiple = false;
+	export let dataKey:string;
 
 	export let customComponent = { create: false, update: false, delete: false, detail: false };
 	export let data: Record<string, unknown>[] = [];
 
-	export let onGetData = (page: number = 1, limit: number = 5, filter: Filter) => {
-		return Promise.resolve({
-			rows: data,
-			totalRows: data.length,
-			page: 1,
-			limit: 5
-		});
-	};
+	export let onGetData: (
+		page: number,
+		limit: number,
+		filter: Filter
+	) => Promise<ResponseStack>;
 
 	// State
 	let openCreateModal = false;
@@ -87,13 +97,7 @@
 	let selectedRowId: string | number | null = null;
 	let isLoading = false;
 	let selectedRow: Record<string, unknown> | null = null;
-	let totalRows = 0;
-	let page = 1;
-	let loadingData = false;
-	let limit = 5;
-
-	let totalPages = 0;
-	$: totalPages = Math.ceil(totalRows / limit);
+	let sorting: { id: string; desc: boolean }[] = [];
 
 	// state for filter data
 	let filter: Filter = {
@@ -105,34 +109,40 @@
 		}
 	};
 
-	// Debounce state
-	let debounceTimeout: ReturnType<typeof setTimeout>;
+	let page = 1;
+	let limit = 5;
+	let formattedRows: Array<Record<string, unknown>> = [];
+	let total: number = 0;
+	let hasNextPage: boolean | undefined = false;
 
-	async function fetchData() {
-		try {
-			loadingData = true;
-			const res = await onGetData(page, limit, filter);
-			if (res) {
-				data = res.rows;
-				totalRows = res.totalRows;
-				page = res.page || 1;
-				limit = res.limit || 5;
-			} else {
-				data = [];
-				totalRows = 0;
-				page = 1;
-				limit = 5;
-			}
-		} catch (e) {
-			showToast('Fetch Data Failed', String(e), 'error');
-		} finally {
-			loadingData = false;
-		}
+	// createquery for main fetching data
+	let tanstackQuery = createQuery<ResponseStack>({
+		queryKey: [dataKey, page, limit, sorting],
+		queryFn: async () => await onGetData(page, limit, filter),
+		throwOnError: true,
+		retry: 1,
+		staleTime: 1000 * 60 * 30 // 30 minutes
+	});
+
+	$: {
+		const datas = $tanstackQuery?.data as ResponseStack | undefined;
+		const rows = datas?.rows ?? [];
+		total = datas?.total ?? 0;
+		hasNextPage = datas?.hasNextPage;
+
+		formattedRows = rows.map((row, index) => ({
+			...row,
+			no: (page - 1) * limit + index + 1
+		}));
 	}
 
-	onMount(() => {
-		fetchData();
-	});
+	// function for refreshdata
+	function refreshData() {
+		$tanstackQuery.refetch();
+	}
+
+	// Debounce state
+	let debounceTimeout: ReturnType<typeof setTimeout>;
 
 	function handleCreate() {
 		if (canCreate) {
@@ -162,16 +172,6 @@
 			if (customComponent.detail) return onDetail(selectedRowId);
 			openDetailModal = true;
 		}
-	}
-
-	function handleSort(field: string) {
-		if (filter.sort.field === field) {
-			filter.sort.order = filter.sort.order === 'asc' ? 'desc' : 'asc';
-		} else {
-			filter.sort.field = field;
-			filter.sort.order = 'asc';
-		}
-		fetchData();
 	}
 
 	function capitalizeWord(text: string) {
@@ -237,7 +237,7 @@
 		isLoading = true;
 
 		try {
-			const res = await onCreateSubmit(values);
+			const res = await onCreateSubmit(values, refreshData);
 			if (res.success) {
 				showToast(res.message || 'Create Successful', res.description || '', 'success');
 				openCreateModal = false;
@@ -259,11 +259,14 @@
 		const isHasError = validation();
 		if (isHasError) return;
 
-		const values = fields.reduce((acc, f) => ({ ...acc, [f.key]: f.value }), {});
+
+		// get values from input when modal is open
+		const values = fields.reduce((acc, f) => ({ ...acc, [f.key]: selectedRow?.[f.key] ?? "" }), {});
+
 		isLoading = true;
 
 		try {
-			const res = await onUpdateSubmit(id, values);
+			const res = await onUpdateSubmit(id, values, refreshData);
 			if (res.success) {
 				showToast(res.message || 'Update Successful', res.description || '', 'success');
 				openUpdateModal = false;
@@ -277,6 +280,89 @@
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	async function handleDeleteSubmit(id: string | number | null, refreshData: () => void) {
+		if(!id) return showToast('Delete Failed', 'Invalid ID', 'error');
+
+		try {
+			const res = await onDeleteSubmit(id, refreshData);
+			if (res.success) {
+				showToast(res.message || 'Delete Successful', res.description || '', 'success');
+				openUpdateModal = false;
+				selectedRowId = null;
+				fields = fields.map((f) => ({ ...f, value: '' }));
+			} else {
+				showToast(res.message || 'Delete Failed', res.error || 'An error occurred', 'error');
+			}
+		} catch (e) {
+			showToast('Delete Failed', String(e), 'error');
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	// init table
+	const table = createSvelteTable<Record<string, unknown>>({
+		get data() {
+			return formattedRows;
+		},
+		columns: [
+			{
+				accessorKey: 'no',
+				header: 'No',
+				cell: (props) => props.getValue()
+			},
+			// only show when hideTable is false
+			...fields
+				.filter((field) => field.options?.hideTable !== true)
+				.map((field) => ({
+					accessorKey: field.key,
+					header: field.label,
+					cell: (props: { getValue: () => unknown }) => props.getValue(),
+					sortable: true
+				}))
+		],
+		state: {
+			get sorting() {
+				return sorting;
+			},
+			get pagination() {
+				return {
+					pageIndex: page,
+					pageSize: limit
+				};
+			}
+		},
+		onSortingChange: (updater) => {
+			sorting = typeof updater === 'function' ? updater(sorting) : updater;
+		},
+		manualSorting: true,
+		manualPagination: true,
+		pageCount: Math.ceil(total / limit),
+		getCoreRowModel: getCoreRowModel()
+	});
+
+	function onPageChange(
+		updater:
+			| ((state: {
+					pageIndex: number;
+					pageSize: number;
+			  }) => { pageIndex: number; pageSize: number })
+			| { pageIndex: number; pageSize: number }
+	) {
+		const newState =
+			typeof updater === 'function' ? updater({ pageIndex: page, pageSize: limit }) : updater;
+
+		page = newState.pageIndex;
+		limit = newState.pageSize;
+
+		$tanstackQuery.refetch();
+	}
+
+	function onLimitChanges(newLimit: number) {
+		limit = newLimit;
+		$tanstackQuery.refetch();
 	}
 </script>
 
@@ -326,7 +412,8 @@
 					filter.keyWords = searchTerm;
 					if (debounceTimeout) clearTimeout(debounceTimeout);
 					debounceTimeout = setTimeout(() => {
-						fetchData();
+						// fetchData();
+						$tanstackQuery.refetch();
 					}, 300);
 				}}
 			/>
@@ -365,55 +452,69 @@
 
 	<div class="rounded-md border">
 		<Table.Root>
-			<Table.Header>
-				<Table.Row>
-					<Table.Head>No</Table.Head>
-					{#each fields as field}
-						<Table.Head onclick={() => handleSort(field.key)}>
-							<span class="flex items-center">
-								{field.label}
-								{#if filter.sort.field === field.key}
-									{#if filter.sort.order === 'asc'}
-										<ArrowUpIcon class="ml-2 h-4 w-4" />
-									{:else}
-										<ArrowDownIcon class="ml-2 h-4 w-4" />
+			<Table.Header class="[&:has([role=checkbox])]:pl-3">
+				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
+					<Table.Row>
+						{#each headerGroup.headers as header (header.id)}
+							<Table.Head
+								class="cursor-pointer"
+								colspan={header.colSpan}
+								onclick={header.column.getToggleSortingHandler()}
+							>
+								{#if !header.isPlaceholder}
+									<FlexRender
+										content={header.column.columnDef.header}
+										context={header.getContext()}
+									/>
+
+									{#if header.column.getIsSorted() === 'asc'}
+										<SortAscIcon class="ml-2 h-4 w-4" />
+									{:else if header.column.getIsSorted() === 'desc'}
+										<SortDescIcon class="ml-2 h-4 w-4" />
 									{/if}
 								{/if}
-							</span>
-						</Table.Head>
-					{/each}
-				</Table.Row>
+							</Table.Head>
+						{/each}
+					</Table.Row>
+				{/each}
 			</Table.Header>
 
 			<Table.Body>
-				{#if loadingData}
+				{#if $tanstackQuery.isFetching}
 					<Table.Row>
 						<Table.Cell colspan={fields.length + 2} class="text-center">
 							<span class="animate-pulse"> Loading... </span>
 						</Table.Cell>
 					</Table.Row>
-				{:else if data.length === 0}
+				{:else if formattedRows.length > 0}
+					{#each table.getRowModel().rows as row (row.id)}
+						<Table.Row
+							class={`hover:bg-muted ${selectedRowId == row.id && 'bg-muted'}`}
+							data-state={row.getIsSelected() && 'selected'}
+							onclick={() => {
+								selectedRowId = row.id;
+								handleRowSelect(row.original);
+							}}
+						>
+							{#each row.getVisibleCells() as cell (cell.id)}
+								<Table.Cell>
+									<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+								</Table.Cell>
+							{/each}
+						</Table.Row>
+					{/each}
+				{:else if $tanstackQuery.isSuccess && formattedRows.length === 0}
 					<Table.Row>
 						<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
 							No data available
 						</Table.Cell>
 					</Table.Row>
-				{:else if data.length > 0}
-					{#each data as row, i (row.id)}
-						<Table.Row
-							class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
-							onclick={() => {
-								selectedRowId = row.id as string;
-								selectedRow = row;
-								handleRowSelect(row);
-							}}
-						>
-							<Table.Cell>{(page - 1) * limit + i + 1}</Table.Cell>
-							{#each fields as field}
-								<Table.Cell>{row[field.key]}</Table.Cell>
-							{/each}
-						</Table.Row>
-					{/each}
+				{:else if $tanstackQuery.isError}
+					<Table.Row>
+						<Table.Cell colspan={fields.length + 2} class="text-center text-red-500">
+							Error loading data: {$tanstackQuery.error.message}
+						</Table.Cell>
+					</Table.Row>
 				{/if}
 			</Table.Body>
 		</Table.Root>
@@ -422,7 +523,7 @@
 	<!-- Pagination -->
 	<div class="flex items-center justify-end space-x-2 pt-4">
 		<div class="flex-1 text-sm text-muted-foreground">
-			{data.length} of {totalRows} entries
+			{formattedRows.length} of {total} entries
 		</div>
 		<div class="space-x-2">
 			<DropdownMenu.Root>
@@ -440,8 +541,7 @@
 							checked={limit === item}
 							onCheckedChange={(checked) => {
 								if (checked) {
-									limit = item;
-									fetchData();
+									onLimitChanges(item);
 								}
 							}}
 						>
@@ -454,26 +554,16 @@
 			<Button
 				variant="outline"
 				size="sm"
-				disabled={page <= 1}
-				onclick={() => {
-					if (page > 1) {
-						page -= 1;
-						fetchData();
-					}
-				}}
+				disabled={page - 1 === 0}
+				onclick={() => onPageChange({ pageIndex: page - 1, pageSize: limit })}
 			>
 				Previous
 			</Button>
 			<Button
 				variant="outline"
 				size="sm"
-				disabled={page >= totalPages}
-				onclick={() => {
-					if (page < totalPages) {
-						page += 1;
-						fetchData();
-					}
-				}}
+				onclick={() => onPageChange({ pageIndex: page + 1, pageSize: limit })}
+				disabled={!hasNextPage}
 			>
 				Next
 			</Button>
@@ -596,7 +686,7 @@
 				<Button
 					onclick={() => {
 						openDeleteModal = false;
-						handleDelete();
+						handleDeleteSubmit(selectedRowId, refreshData);
 					}}
 					variant="destructive"
 					disabled={isLoading || selectedRowId === null}

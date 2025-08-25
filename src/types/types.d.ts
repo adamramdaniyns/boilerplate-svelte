@@ -17,7 +17,7 @@ type DefaultType = {
 		maxLength?: number;
 		pattern?: RegExp;
 		message?: [string?, string?, string?];
-	}
+	};
 };
 
 type Filter = {
@@ -27,4 +27,13 @@ type Filter = {
 		field: string;
 		order: 'asc' | 'desc';
 	};
+};
+
+interface ResponseStack extends Record<string, unknown> {
+	rows: Array<Record<string, unknown>>;
+	total: number;
+	page: number;
+	lastPage: number;
+	hasNextPage: boolean;
+	isLoading: boolean;
 };
