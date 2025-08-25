@@ -4,6 +4,7 @@
 	import AppToast from '../components/AppToast.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import AppSidebar from '../components/AppSidebar.svelte';
+	import QueryClient from '../hooks/QueryClient.svelte';
 
 	let { children } = $props();
 </script>
@@ -12,11 +13,13 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<Sidebar.Provider>
-  <AppSidebar />
-  <main class="w-full px-2">
-    <Sidebar.Trigger />
-    {@render children?.()}
-  </main>
-</Sidebar.Provider>
-<AppToast />
+<QueryClient>
+	<Sidebar.Provider>
+		<AppSidebar />
+		<main class="w-full px-2">
+			<Sidebar.Trigger />
+			{@render children?.()}
+		</main>
+	</Sidebar.Provider>
+	<AppToast />
+</QueryClient>

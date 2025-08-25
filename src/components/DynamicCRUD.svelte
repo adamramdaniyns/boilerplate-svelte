@@ -7,8 +7,13 @@
 	import Label from '@/components/ui/label/label.svelte';
 	import * as DropdownMenu from '@/components/ui/dropdown-menu';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import { onMount, createEventDispatcher } from 'svelte';
-	import { ArrowDownIcon, ArrowUpIcon } from '@lucide/svelte';
+	import { createEventDispatcher } from 'svelte';
+	import { SortAscIcon, SortDescIcon } from '@lucide/svelte';
+	import { createSvelteTable, FlexRender } from '@/components/ui/data-table';
+	import { getCoreRowModel, type RowSelectionState } from '@tanstack/table-core';
+	import { createQuery } from '@tanstack/svelte-query';
+	import { writable } from 'svelte/store';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 
 	// dispatch
 	const dispatch = createEventDispatcher();
@@ -19,12 +24,20 @@
 		dispatch('rowSelect', row);
 	}
 
+	$: {
+		// Update the selected rows when the checkbox state changes
+		dispatch('rowSelect', selectedRows);
+	}
+
 	// Props
 	export let fields: DefaultType[] = [];
 
 	export let formTitle = 'Form Title';
 	export let tableTitle = 'Data Table';
-	export let onCreateSubmit: (values: Record<string, unknown>) => Promise<{
+	export let onCreateSubmit: (
+		values: any,
+		refetch: () => void
+	) => Promise<{
 		success: boolean;
 		data?: unknown;
 		error?: string;
@@ -33,7 +46,8 @@
 	}> = () => Promise.resolve({ success: true });
 	export let onUpdateSubmit: (
 		id: string | number | null,
-		values: Record<string, unknown>
+		values: any,
+		refreshData: () => void
 	) => Promise<{
 		success: boolean;
 		data?: unknown;
@@ -42,9 +56,15 @@
 		description?: string;
 	}> = () => Promise.resolve({ success: true });
 	export let onDeleteSubmit: (
-		id: string | number | null
-	) => Promise<{ success: boolean; data?: unknown; error?: string }> = () =>
-		Promise.resolve({ success: true });
+		id: any | any[],
+		refreshData: () => void
+	) => Promise<{
+		success: boolean;
+		data?: unknown;
+		error?: string;
+		message?: string;
+		description?: string;
+	}> = () => Promise.resolve({ success: true });
 
 	export let onCreate: () => void = () => {};
 	export let onUpdate: (id: string | number | null) => void = () => {};
@@ -66,18 +86,12 @@
 	export let deleteTitle = 'Delete';
 	export let detailTitle = 'Detail';
 	export let canMultiple = false;
+	export let dataKey: string;
 
 	export let customComponent = { create: false, update: false, delete: false, detail: false };
-	export let data: Record<string, unknown>[] = [];
+	export let data: any[] = [];
 
-	export let onGetData = (page: number = 1, limit: number = 5, filter: Filter) => {
-		return Promise.resolve({
-			rows: data,
-			totalRows: data.length,
-			page: 1,
-			limit: 5
-		});
-	};
+	export let onGetData: (page: number, limit: number, filter: Filter) => Promise<ResponseStack>;
 
 	// State
 	let openCreateModal = false;
@@ -87,13 +101,9 @@
 	let selectedRowId: string | number | null = null;
 	let isLoading = false;
 	let selectedRow: Record<string, unknown> | null = null;
-	let totalRows = 0;
-	let page = 1;
-	let loadingData = false;
-	let limit = 5;
-
-	let totalPages = 0;
-	$: totalPages = Math.ceil(totalRows / limit);
+	let selectedRows: any[] = [];
+	let selectedRowIds: string[] = [];
+	let sorting: { id: string; desc: boolean }[] = [];
 
 	// state for filter data
 	let filter: Filter = {
@@ -105,34 +115,40 @@
 		}
 	};
 
-	// Debounce state
-	let debounceTimeout: ReturnType<typeof setTimeout>;
+	let page = 1;
+	let limit = 5;
+	let formattedRows: Array<Record<string, unknown>> = [];
+	let total: number = 0;
+	let hasNextPage: boolean | undefined = false;
 
-	async function fetchData() {
-		try {
-			loadingData = true;
-			const res = await onGetData(page, limit, filter);
-			if (res) {
-				data = res.rows;
-				totalRows = res.totalRows;
-				page = res.page || 1;
-				limit = res.limit || 5;
-			} else {
-				data = [];
-				totalRows = 0;
-				page = 1;
-				limit = 5;
-			}
-		} catch (e) {
-			showToast('Fetch Data Failed', String(e), 'error');
-		} finally {
-			loadingData = false;
-		}
+	// createquery for main fetching data
+	let tanstackQuery = createQuery<ResponseStack>({
+		queryKey: [dataKey, page, limit, sorting],
+		queryFn: async () => await onGetData(page, limit, filter),
+		throwOnError: true,
+		retry: 1,
+		staleTime: 1000 * 60 * 30 // 30 minutes
+	});
+
+	$: {
+		const datas = $tanstackQuery?.data as ResponseStack | undefined;
+		const rows = datas?.rows ?? [];
+		total = datas?.total ?? 0;
+		hasNextPage = datas?.hasNextPage;
+
+		formattedRows = rows.map((row, index) => ({
+			...row,
+			no: (page - 1) * limit + index + 1
+		}));
 	}
 
-	onMount(() => {
-		fetchData();
-	});
+	// function for refreshdata
+	function refreshData() {
+		$tanstackQuery.refetch();
+	}
+
+	// Debounce state
+	let debounceTimeout: ReturnType<typeof setTimeout>;
 
 	function handleCreate() {
 		if (canCreate) {
@@ -145,12 +161,20 @@
 	function handleUpdate() {
 		if (canUpdate && selectedRowId !== null) {
 			if (customComponent.update) return onUpdate(selectedRowId);
+			fields.forEach((f) => {
+				// find value from selectedRow
+				if (selectedRow && selectedRow[f.key] !== undefined) {
+					f.value = String(selectedRow[f.key]);
+				} else {
+					f.value = '';
+				}
+			});
 			openUpdateModal = true;
 		}
 	}
 
 	function handleDelete() {
-		if (canDelete && selectedRowId !== null) {
+		if (canDelete && selectedRowId !== null && !canMultiple || canMultiple && selectedRowIds.length > 0) {
 			if (customComponent.delete) return onDelete(selectedRowId);
 			openDeleteModal = true;
 		}
@@ -158,20 +182,9 @@
 
 	function handleDetail() {
 		if (canDetail && selectedRowId !== null) {
-			selectedRow = data.find((item) => item.id === selectedRowId) ?? null;
 			if (customComponent.detail) return onDetail(selectedRowId);
 			openDetailModal = true;
 		}
-	}
-
-	function handleSort(field: string) {
-		if (filter.sort.field === field) {
-			filter.sort.order = filter.sort.order === 'asc' ? 'desc' : 'asc';
-		} else {
-			filter.sort.field = field;
-			filter.sort.order = 'asc';
-		}
-		fetchData();
 	}
 
 	function capitalizeWord(text: string) {
@@ -237,7 +250,7 @@
 		isLoading = true;
 
 		try {
-			const res = await onCreateSubmit(values);
+			const res = await onCreateSubmit(values, refreshData);
 			if (res.success) {
 				showToast(res.message || 'Create Successful', res.description || '', 'success');
 				openCreateModal = false;
@@ -259,11 +272,16 @@
 		const isHasError = validation();
 		if (isHasError) return;
 
-		const values = fields.reduce((acc, f) => ({ ...acc, [f.key]: f.value }), {});
+		// get values from input when modal is open
+		const values = fields.reduce(
+			(acc, f) => ({ ...acc, [f.key]: f.value ?? selectedRow?.[f.key] ?? '' }),
+			{}
+		);
+
 		isLoading = true;
 
 		try {
-			const res = await onUpdateSubmit(id, values);
+			const res = await onUpdateSubmit(id, values, refreshData);
 			if (res.success) {
 				showToast(res.message || 'Update Successful', res.description || '', 'success');
 				openUpdateModal = false;
@@ -278,13 +296,145 @@
 			isLoading = false;
 		}
 	}
+
+	async function handleDeleteSubmit(id: string | string[], refreshData: () => void) {
+		if (!id) return showToast('Delete Failed', 'Invalid ID', 'error');
+
+		try {
+			const res = await onDeleteSubmit(id, refreshData);
+			if (res.success) {
+				showToast(res.message || 'Delete Successful', res.description || '', 'success');
+				openDeleteModal = false;
+				selectedRowId = null;
+				fields = fields.map((f) => ({ ...f, value: '' }));
+			} else {
+				showToast(res.message || 'Delete Failed', res.error || 'An error occurred', 'error');
+			}
+		} catch (e) {
+			showToast('Delete Failed', String(e), 'error');
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	let rowSelection = writable<RowSelectionState>({});
+
+	// init table
+	const table = createSvelteTable<Record<string, unknown>>({
+		get data() {
+			return formattedRows;
+		},
+		columns: [
+			// when canMultiple is true render checkbox
+			...(canMultiple
+				? [
+						{
+							id: 'select',
+							enableSorting: false,
+							enableHiding: false
+						}
+					]
+				: []),
+			// always show no column
+			{
+				accessorKey: 'no',
+				header: 'No',
+				cell: (props) => props.getValue(),
+				enableColumnFilter: false
+			},
+			// only show when hideTable is false
+			...fields
+				.filter((field) => field.options?.hideTable !== true)
+				.map((field) => ({
+					accessorKey: field.key,
+					header: field.label,
+					cell: (props: { getValue: () => unknown }) => props.getValue(),
+					sortable: true
+				}))
+		],
+		state: {
+			get sorting() {
+				return sorting;
+			},
+			get pagination() {
+				return {
+					pageIndex: page,
+					pageSize: limit
+				};
+			},
+			get rowSelection() {
+				let val;
+				rowSelection.subscribe((s) => (val = s))();
+				return val;
+			}
+		},
+		getRowId: (row: any) => row.id,
+		enableRowSelection: true,
+		onSortingChange: (updater) => {
+			sorting = typeof updater === 'function' ? updater(sorting) : updater;
+			if (sorting.length > 0) {
+				filter.sort.field = sorting[0].id;
+				filter.sort.order = sorting[0].desc ? 'desc' : 'asc';
+			} else {
+				filter.sort.field = '';
+				filter.sort.order = 'asc';
+			}
+			$tanstackQuery.refetch();
+		},
+		onRowSelectionChange: (updater) => {
+			rowSelection.update((prev) => (typeof updater === 'function' ? updater(prev) : updater));
+			const mappingSelectedRows = table.getSelectedRowModel().rows.map((r) => r.id.toString());
+			selectedRowIds = mappingSelectedRows;
+			selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+		},
+		manualSorting: true,
+		manualPagination: true,
+		pageCount: Math.ceil(total / limit),
+		getCoreRowModel: getCoreRowModel()
+	});
+
+	// $: table.setOptions((prev) => ({
+	// 	...prev,
+	// 	state: {
+	// 		...prev.state,
+	// 		rowSelection: $rowSelection
+	// 	}
+	// }));
+
+	function onPageChange(
+		updater:
+			| ((state: {
+					pageIndex: number;
+					pageSize: number;
+			  }) => { pageIndex: number; pageSize: number })
+			| { pageIndex: number; pageSize: number }
+	) {
+		const newState =
+			typeof updater === 'function' ? updater({ pageIndex: page, pageSize: limit }) : updater;
+
+		page = newState.pageIndex;
+		limit = newState.pageSize;
+
+		$tanstackQuery.refetch();
+	}
+
+	function onLimitChanges(newLimit: number) {
+		limit = newLimit;
+		$tanstackQuery.refetch();
+	}
 </script>
 
 <div class="w-full">
 	<div class="mb-4 flex items-center justify-between">
 		{#if customProcess}
 			{#if processComponent}
-				<svelte:component this={processComponent} />
+				<svelte:component
+					this={processComponent}
+					{selectedRow}
+					{canMultiple}
+					{selectedRows}
+					{fields}
+				/>
 			{:else}
 				<div>No custom process component provided</div>
 			{/if}
@@ -303,7 +453,7 @@
 				{/if}
 
 				{#if canDelete && !customProcess}
-					<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
+					<Button onclick={handleDelete} disabled={isLoading || !canMultiple && selectedRowId === null || canMultiple && selectedRowIds.length === 0}>
 						{deleteTitle}
 					</Button>
 				{/if}
@@ -326,7 +476,8 @@
 					filter.keyWords = searchTerm;
 					if (debounceTimeout) clearTimeout(debounceTimeout);
 					debounceTimeout = setTimeout(() => {
-						fetchData();
+						// fetchData();
+						$tanstackQuery.refetch();
 					}, 300);
 				}}
 			/>
@@ -365,56 +516,66 @@
 
 	<div class="rounded-md border">
 		<Table.Root>
-			<Table.Header>
-				<Table.Row>
-					<Table.Head>No</Table.Head>
-					{#each fields as field}
-						<Table.Head onclick={() => handleSort(field.key)}>
-							<span class="flex items-center">
-								{field.label}
-								{#if filter.sort.field === field.key}
-									{#if filter.sort.order === 'asc'}
-										<ArrowUpIcon class="ml-2 h-4 w-4" />
-									{:else}
-										<ArrowDownIcon class="ml-2 h-4 w-4" />
+			<Table.Header class="[&:has([role=checkbox])]:pl-3">
+				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
+					<Table.Row>
+						{#each headerGroup.headers as header (header.id)}
+							<Table.Head
+								class="cursor-pointer"
+								colspan={header.colSpan}
+								onclick={header.column.getToggleSortingHandler()}
+							>
+								{#if header.column.id === 'select'}
+									<Checkbox
+										checked={table.getIsAllRowsSelected()}
+										indeterminate={table.getIsSomeRowsSelected()}
+										onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
+										aria-label="Select all rows"
+									/>
+								{:else if !header.isPlaceholder}
+									<FlexRender
+										content={header.column.columnDef.header}
+										context={header.getContext()}
+									/>
+									{#if header.column.getIsSorted() === 'asc'}
+										<SortAscIcon class="ml-2 h-4 w-4" />
+									{:else if header.column.getIsSorted() === 'desc'}
+										<SortDescIcon class="ml-2 h-4 w-4" />
 									{/if}
 								{/if}
-							</span>
-						</Table.Head>
-					{/each}
-				</Table.Row>
+							</Table.Head>
+						{/each}
+					</Table.Row>
+				{/each}
 			</Table.Header>
 
 			<Table.Body>
-				{#if loadingData}
-					<Table.Row>
-						<Table.Cell colspan={fields.length + 2} class="text-center">
-							<span class="animate-pulse"> Loading... </span>
-						</Table.Cell>
-					</Table.Row>
-				{:else if data.length === 0}
-					<Table.Row>
-						<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
-							No data available
-						</Table.Cell>
-					</Table.Row>
-				{:else if data.length > 0}
-					{#each data as row, i (row.id)}
+				{#if $tanstackQuery.isFetching}{:else if formattedRows.length > 0}
+					{#each table.getRowModel().rows as row (row.id)}
 						<Table.Row
-							class={`${selectedRowId === row.id ? 'bg-gray-100' : ''}`}
+							class={`hover:bg-muted ${selectedRowId == row.id && 'bg-muted'}`}
+							data-state={row.getIsSelected() && 'selected'}
 							onclick={() => {
-								selectedRowId = row.id as string;
-								selectedRow = row;
-								handleRowSelect(row);
+								!canMultiple && (selectedRowId = row.id);
+								!canMultiple && handleRowSelect(row.original);
 							}}
 						>
-							<Table.Cell>{(page - 1) * limit + i + 1}</Table.Cell>
-							{#each fields as field}
-								<Table.Cell>{row[field.key]}</Table.Cell>
+							{#each row.getVisibleCells() as cell (cell.id)}
+								<Table.Cell>
+									{#if cell.column.id === 'select'}
+										<Checkbox
+											checked={selectedRowIds.includes(row.id.toString())}
+											onCheckedChange={(value) => row.toggleSelected(!!value)}
+											aria-label="Select row"
+										/>
+									{:else}
+										<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+									{/if}
+								</Table.Cell>
 							{/each}
 						</Table.Row>
 					{/each}
-				{/if}
+				{:else if $tanstackQuery.isSuccess && formattedRows.length === 0}{:else if $tanstackQuery.isError}{/if}
 			</Table.Body>
 		</Table.Root>
 	</div>
@@ -422,7 +583,7 @@
 	<!-- Pagination -->
 	<div class="flex items-center justify-end space-x-2 pt-4">
 		<div class="flex-1 text-sm text-muted-foreground">
-			{data.length} of {totalRows} entries
+			{formattedRows.length} of {total} entries
 		</div>
 		<div class="space-x-2">
 			<DropdownMenu.Root>
@@ -440,8 +601,7 @@
 							checked={limit === item}
 							onCheckedChange={(checked) => {
 								if (checked) {
-									limit = item;
-									fetchData();
+									onLimitChanges(item);
 								}
 							}}
 						>
@@ -454,26 +614,16 @@
 			<Button
 				variant="outline"
 				size="sm"
-				disabled={page <= 1}
-				onclick={() => {
-					if (page > 1) {
-						page -= 1;
-						fetchData();
-					}
-				}}
+				disabled={page - 1 === 0}
+				onclick={() => onPageChange({ pageIndex: page - 1, pageSize: limit })}
 			>
 				Previous
 			</Button>
 			<Button
 				variant="outline"
 				size="sm"
-				disabled={page >= totalPages}
-				onclick={() => {
-					if (page < totalPages) {
-						page += 1;
-						fetchData();
-					}
-				}}
+				onclick={() => onPageChange({ pageIndex: page + 1, pageSize: limit })}
+				disabled={!hasNextPage}
 			>
 				Next
 			</Button>
@@ -555,7 +705,8 @@
 							<Label for={field.id as string} class="text-right">{field.label}</Label>
 							<Input
 								id={field.id as string}
-								value={selectedRow ? selectedRow[field.key] : ''}
+								bind:value={field.value}
+								type={field.type}
 								class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
 								placeholder={field.label}
 							/>
@@ -596,10 +747,19 @@
 				<Button
 					onclick={() => {
 						openDeleteModal = false;
-						handleDelete();
+						handleDeleteSubmit(
+							canMultiple
+								? selectedRowIds
+								: typeof selectedRowId === 'string'
+								? selectedRowId
+								: selectedRowId !== null
+								? String(selectedRowId)
+								: '',
+							refreshData
+						);
 					}}
 					variant="destructive"
-					disabled={isLoading || selectedRowId === null}
+					disabled={isLoading || (!canMultiple && selectedRowId === null) || (canMultiple && selectedRowIds.length === 0)}
 				>
 					Delete
 				</Button>
