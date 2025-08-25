@@ -2,7 +2,7 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as Dropdown from '$lib/components/ui/dropdown-menu';
-	import { Rocket, User, CreditCard, Bell, LogOut, Package2, ChevronRight } from '@lucide/svelte';
+	import { Rocket, User, CreditCard, Bell, LogOut, Package2, ChevronRight, HomeIcon } from '@lucide/svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { onMount } from 'svelte';
@@ -12,6 +12,11 @@
 
 	// Menu items.
 	const items = [
+		{
+			title: 'Home',
+			url: '/',
+			icon: HomeIcon
+		},
 		{
 			title: 'Components',
 			url: '#',
