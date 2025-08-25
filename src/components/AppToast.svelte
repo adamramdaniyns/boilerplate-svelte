@@ -4,10 +4,11 @@
 	import { toast } from '../stores/toast';
 	import CheckCircle from '@lucide/svelte/icons/check-circle';
 
-	// Only allow "default" or "destructive" as variant values
 	let variant: 'default' | 'destructive' | undefined;
 	$: variant =
 		$toast.type === 'default' ? 'default' : $toast.type === 'error' ? 'destructive' : 'default';
+
+	let isHovered = false;
 
 	function handleCloseAlert() {
 		$toast.isOpen = false;
@@ -15,7 +16,6 @@
 </script>
 
 {#if variant === 'destructive'}
-	<!-- Show alert dialog for better UX -->
 	<AlertDialog.Root open={$toast.isOpen}>
 		<AlertDialog.Content class="z-[999999]">
 			<AlertDialog.Title>
@@ -31,14 +31,18 @@
 	</AlertDialog.Root>
 {:else}
 	<div
-		class={`fixed bottom-4 z-[9999] ${$toast.isOpen && variant === 'default' ? 'right-4' : '-right-[99px]'} transition-all duration-300 ease-in-out`}
+		class={`fixed bottom-4 z-[9999] ${($toast.isOpen || isHovered) && variant === 'default' ? 'right-4' : '-right-[300px]'} transition-all duration-400 ease-in-out`}
+		on:mouseenter={() => (isHovered = true)}
+		on:mouseleave={() => (isHovered = false)}
 	>
-		<Alert.Root {variant}>
+		<Alert.Root {variant} class="bg-green-400 text-white">
 			<CheckCircle />
 			<Alert.Title>
 				{$toast.message}
 			</Alert.Title>
-			<Alert.Description>{$toast.description}</Alert.Description>
+			<Alert.Description class="text-gray-100">
+				{$toast.description}
+			</Alert.Description>
 		</Alert.Root>
 	</div>
 {/if}

@@ -15,7 +15,7 @@ export function showToast(
 	toast.set({ isOpen: true, message, description, type });
 	if (type !== 'error') {
 		setTimeout(() => {
-			toast.set({ isOpen: false, message: '', description: '', type });
+			toast.set({ isOpen: false, message, description, type });
 		}, 3000);
 	}
 }

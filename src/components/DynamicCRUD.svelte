@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Table from '@/components/ui/table';
-	import { showToast, toast } from '../stores/toast';
+	import { showToast } from '../stores/toast';
 	import Button from '@/components/ui/button/button.svelte';
 	import * as Dialog from '@/components/ui/dialog';
 	import Input from '@/components/ui/input/input.svelte';
@@ -10,8 +10,10 @@
 	import { createEventDispatcher } from 'svelte';
 	import { SortAscIcon, SortDescIcon } from '@lucide/svelte';
 	import { createSvelteTable, FlexRender } from '@/components/ui/data-table';
-	import { getCoreRowModel } from '@tanstack/table-core';
+	import { getCoreRowModel, type RowSelectionState } from '@tanstack/table-core';
 	import { createQuery } from '@tanstack/svelte-query';
+	import { writable } from 'svelte/store';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 
 	// dispatch
 	const dispatch = createEventDispatcher();
@@ -20,6 +22,11 @@
 	function handleRowSelect(row: Record<string, unknown>) {
 		selectedRow = row;
 		dispatch('rowSelect', row);
+	}
+
+	$: {
+		// Update the selected rows when the checkbox state changes
+		dispatch('rowSelect', selectedRows);
 	}
 
 	// Props
@@ -82,7 +89,7 @@
 	export let dataKey: string;
 
 	export let customComponent = { create: false, update: false, delete: false, detail: false };
-	export let data: Record<string, unknown>[] = [];
+	export let data: any[] = [];
 
 	export let onGetData: (page: number, limit: number, filter: Filter) => Promise<ResponseStack>;
 
@@ -94,6 +101,8 @@
 	let selectedRowId: string | number | null = null;
 	let isLoading = false;
 	let selectedRow: Record<string, unknown> | null = null;
+	let selectedRows: any[] = [];
+	let selectedRowIds: string[] = [];
 	let sorting: { id: string; desc: boolean }[] = [];
 
 	// state for filter data
@@ -308,16 +317,30 @@
 		}
 	}
 
+	let rowSelection = writable<RowSelectionState>({});
+
 	// init table
 	const table = createSvelteTable<Record<string, unknown>>({
 		get data() {
 			return formattedRows;
 		},
 		columns: [
+			// when canMultiple is true render checkbox
+			...(canMultiple
+				? [
+						{
+							id: 'select',
+							enableSorting: false,
+							enableHiding: false
+						}
+					]
+				: []),
+			// always show no column
 			{
 				accessorKey: 'no',
 				header: 'No',
-				cell: (props) => props.getValue()
+				cell: (props) => props.getValue(),
+				enableColumnFilter: false
 			},
 			// only show when hideTable is false
 			...fields
@@ -338,8 +361,15 @@
 					pageIndex: page,
 					pageSize: limit
 				};
+			},
+			get rowSelection() {
+				let val;
+				rowSelection.subscribe((s) => (val = s))();
+				return val;
 			}
 		},
+		getRowId: (row: any) => row.id,
+		enableRowSelection: true,
 		onSortingChange: (updater) => {
 			sorting = typeof updater === 'function' ? updater(sorting) : updater;
 			if (sorting.length > 0) {
@@ -351,11 +381,25 @@
 			}
 			$tanstackQuery.refetch();
 		},
+		onRowSelectionChange: (updater) => {
+			rowSelection.update((prev) => (typeof updater === 'function' ? updater(prev) : updater));
+			const mappingSelectedRows = table.getSelectedRowModel().rows.map((r) => r.id.toString());
+			selectedRowIds = mappingSelectedRows;
+			selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+		},
 		manualSorting: true,
 		manualPagination: true,
 		pageCount: Math.ceil(total / limit),
 		getCoreRowModel: getCoreRowModel()
 	});
+
+	// $: table.setOptions((prev) => ({
+	// 	...prev,
+	// 	state: {
+	// 		...prev.state,
+	// 		rowSelection: $rowSelection
+	// 	}
+	// }));
 
 	function onPageChange(
 		updater:
@@ -384,7 +428,13 @@
 	<div class="mb-4 flex items-center justify-between">
 		{#if customProcess}
 			{#if processComponent}
-				<svelte:component this={processComponent} selectedRow={selectedRow} fields={fields} />
+				<svelte:component
+					this={processComponent}
+					{selectedRow}
+					{canMultiple}
+					{selectedRows}
+					{fields}
+				/>
 			{:else}
 				<div>No custom process component provided</div>
 			{/if}
@@ -475,12 +525,18 @@
 								colspan={header.colSpan}
 								onclick={header.column.getToggleSortingHandler()}
 							>
-								{#if !header.isPlaceholder}
+								{#if header.column.id === 'select'}
+									<Checkbox
+										checked={table.getIsAllRowsSelected()}
+										indeterminate={table.getIsSomeRowsSelected()}
+										onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
+										aria-label="Select all rows"
+									/>
+								{:else if !header.isPlaceholder}
 									<FlexRender
 										content={header.column.columnDef.header}
 										context={header.getContext()}
 									/>
-
 									{#if header.column.getIsSorted() === 'asc'}
 										<SortAscIcon class="ml-2 h-4 w-4" />
 									{:else if header.column.getIsSorted() === 'desc'}
@@ -494,42 +550,32 @@
 			</Table.Header>
 
 			<Table.Body>
-				{#if $tanstackQuery.isFetching}
-					<Table.Row>
-						<Table.Cell colspan={fields.length + 2} class="text-center">
-							<span class="animate-pulse"> Loading... </span>
-						</Table.Cell>
-					</Table.Row>
-				{:else if formattedRows.length > 0}
+				{#if $tanstackQuery.isFetching}{:else if formattedRows.length > 0}
 					{#each table.getRowModel().rows as row (row.id)}
 						<Table.Row
 							class={`hover:bg-muted ${selectedRowId == row.id && 'bg-muted'}`}
 							data-state={row.getIsSelected() && 'selected'}
 							onclick={() => {
-								selectedRowId = row.id;
-								handleRowSelect(row.original);
+								!canMultiple && (selectedRowId = row.id);
+								!canMultiple && handleRowSelect(row.original);
 							}}
 						>
 							{#each row.getVisibleCells() as cell (cell.id)}
 								<Table.Cell>
-									<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+									{#if cell.column.id === 'select'}
+										<Checkbox
+											checked={selectedRowIds.includes(row.id.toString())}
+											onCheckedChange={(value) => row.toggleSelected(!!value)}
+											aria-label="Select row"
+										/>
+									{:else}
+										<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+									{/if}
 								</Table.Cell>
 							{/each}
 						</Table.Row>
 					{/each}
-				{:else if $tanstackQuery.isSuccess && formattedRows.length === 0}
-					<Table.Row>
-						<Table.Cell colspan={fields.length + 2} class="text-center text-gray-500">
-							No data available
-						</Table.Cell>
-					</Table.Row>
-				{:else if $tanstackQuery.isError}
-					<Table.Row>
-						<Table.Cell colspan={fields.length + 2} class="text-center text-red-500">
-							Error loading data: {$tanstackQuery.error.message}
-						</Table.Cell>
-					</Table.Row>
-				{/if}
+				{:else if $tanstackQuery.isSuccess && formattedRows.length === 0}{:else if $tanstackQuery.isError}{/if}
 			</Table.Body>
 		</Table.Root>
 	</div>
