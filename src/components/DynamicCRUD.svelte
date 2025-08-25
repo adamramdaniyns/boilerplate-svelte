@@ -56,7 +56,7 @@
 		description?: string;
 	}> = () => Promise.resolve({ success: true });
 	export let onDeleteSubmit: (
-		id: string | number | null,
+		id: any | any[],
 		refreshData: () => void
 	) => Promise<{
 		success: boolean;
@@ -174,7 +174,7 @@
 	}
 
 	function handleDelete() {
-		if (canDelete && selectedRowId !== null) {
+		if (canDelete && selectedRowId !== null && !canMultiple || canMultiple && selectedRowIds.length > 0) {
 			if (customComponent.delete) return onDelete(selectedRowId);
 			openDeleteModal = true;
 		}
@@ -297,7 +297,7 @@
 		}
 	}
 
-	async function handleDeleteSubmit(id: string | number | null, refreshData: () => void) {
+	async function handleDeleteSubmit(id: string | string[], refreshData: () => void) {
 		if (!id) return showToast('Delete Failed', 'Invalid ID', 'error');
 
 		try {
@@ -453,7 +453,7 @@
 				{/if}
 
 				{#if canDelete && !customProcess}
-					<Button onclick={handleDelete} disabled={isLoading || selectedRowId === null}>
+					<Button onclick={handleDelete} disabled={isLoading || !canMultiple && selectedRowId === null || canMultiple && selectedRowIds.length === 0}>
 						{deleteTitle}
 					</Button>
 				{/if}
@@ -747,10 +747,19 @@
 				<Button
 					onclick={() => {
 						openDeleteModal = false;
-						handleDeleteSubmit(selectedRowId, refreshData);
+						handleDeleteSubmit(
+							canMultiple
+								? selectedRowIds
+								: typeof selectedRowId === 'string'
+								? selectedRowId
+								: selectedRowId !== null
+								? String(selectedRowId)
+								: '',
+							refreshData
+						);
 					}}
 					variant="destructive"
-					disabled={isLoading || selectedRowId === null}
+					disabled={isLoading || (!canMultiple && selectedRowId === null) || (canMultiple && selectedRowIds.length === 0)}
 				>
 					Delete
 				</Button>
