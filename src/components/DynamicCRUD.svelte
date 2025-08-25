@@ -21,14 +21,16 @@
 		selectedRow = row;
 		dispatch('rowSelect', row);
 	}
-	
 
 	// Props
 	export let fields: DefaultType[] = [];
 
 	export let formTitle = 'Form Title';
 	export let tableTitle = 'Data Table';
-	export let onCreateSubmit: (values: any, refetch: () => void) => Promise<{
+	export let onCreateSubmit: (
+		values: any,
+		refetch: () => void
+	) => Promise<{
 		success: boolean;
 		data?: unknown;
 		error?: string;
@@ -49,14 +51,13 @@
 	export let onDeleteSubmit: (
 		id: string | number | null,
 		refreshData: () => void
-	) => Promise<{ 
+	) => Promise<{
 		success: boolean;
 		data?: unknown;
-		error?: string,
+		error?: string;
 		message?: string;
 		description?: string;
-	 }> = () =>
-		Promise.resolve({ success: true });
+	}> = () => Promise.resolve({ success: true });
 
 	export let onCreate: () => void = () => {};
 	export let onUpdate: (id: string | number | null) => void = () => {};
@@ -78,16 +79,12 @@
 	export let deleteTitle = 'Delete';
 	export let detailTitle = 'Detail';
 	export let canMultiple = false;
-	export let dataKey:string;
+	export let dataKey: string;
 
 	export let customComponent = { create: false, update: false, delete: false, detail: false };
 	export let data: Record<string, unknown>[] = [];
 
-	export let onGetData: (
-		page: number,
-		limit: number,
-		filter: Filter
-	) => Promise<ResponseStack>;
+	export let onGetData: (page: number, limit: number, filter: Filter) => Promise<ResponseStack>;
 
 	// State
 	let openCreateModal = false;
@@ -155,6 +152,14 @@
 	function handleUpdate() {
 		if (canUpdate && selectedRowId !== null) {
 			if (customComponent.update) return onUpdate(selectedRowId);
+			fields.forEach((f) => {
+				// find value from selectedRow
+				if (selectedRow && selectedRow[f.key] !== undefined) {
+					f.value = String(selectedRow[f.key]);
+				} else {
+					f.value = '';
+				}
+			});
 			openUpdateModal = true;
 		}
 	}
@@ -168,7 +173,6 @@
 
 	function handleDetail() {
 		if (canDetail && selectedRowId !== null) {
-			selectedRow = data.find((item) => item.id === selectedRowId) ?? null;
 			if (customComponent.detail) return onDetail(selectedRowId);
 			openDetailModal = true;
 		}
@@ -259,9 +263,11 @@
 		const isHasError = validation();
 		if (isHasError) return;
 
-
 		// get values from input when modal is open
-		const values = fields.reduce((acc, f) => ({ ...acc, [f.key]: selectedRow?.[f.key] ?? "" }), {});
+		const values = fields.reduce(
+			(acc, f) => ({ ...acc, [f.key]: f.value ?? selectedRow?.[f.key] ?? '' }),
+			{}
+		);
 
 		isLoading = true;
 
@@ -283,13 +289,13 @@
 	}
 
 	async function handleDeleteSubmit(id: string | number | null, refreshData: () => void) {
-		if(!id) return showToast('Delete Failed', 'Invalid ID', 'error');
+		if (!id) return showToast('Delete Failed', 'Invalid ID', 'error');
 
 		try {
 			const res = await onDeleteSubmit(id, refreshData);
 			if (res.success) {
 				showToast(res.message || 'Delete Successful', res.description || '', 'success');
-				openUpdateModal = false;
+				openDeleteModal = false;
 				selectedRowId = null;
 				fields = fields.map((f) => ({ ...f, value: '' }));
 			} else {
@@ -336,6 +342,14 @@
 		},
 		onSortingChange: (updater) => {
 			sorting = typeof updater === 'function' ? updater(sorting) : updater;
+			if (sorting.length > 0) {
+				filter.sort.field = sorting[0].id;
+				filter.sort.order = sorting[0].desc ? 'desc' : 'asc';
+			} else {
+				filter.sort.field = '';
+				filter.sort.order = 'asc';
+			}
+			$tanstackQuery.refetch();
 		},
 		manualSorting: true,
 		manualPagination: true,
@@ -645,7 +659,8 @@
 							<Label for={field.id as string} class="text-right">{field.label}</Label>
 							<Input
 								id={field.id as string}
-								value={selectedRow ? selectedRow[field.key] : ''}
+								bind:value={field.value}
+								type={field.type}
 								class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
 								placeholder={field.label}
 							/>
