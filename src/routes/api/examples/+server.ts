@@ -20,12 +20,18 @@ export async function GET({ url }) {
 			item[key]?.toString().toLowerCase().includes(keywords.toLowerCase())
 		);
 	}
-	
+
+	// for dummy purpose add numeric and date to data
+	data = data.map((item: Record<string, unknown>) => ({
+		...item,
+		date: new Date(),
+		price: Math.floor(Math.random() * 10000)
+	}));	
+
 	const total = data.length;
 	const lastPage = Math.ceil(total / Number(limit));
 	const hasNextPage = Number(page) < lastPage;
 	let limitData = data.slice((Number(page) - 1) * Number(limit), Number(page) * Number(limit));
-	
 	
 	return json({
 		rows: limitData,
