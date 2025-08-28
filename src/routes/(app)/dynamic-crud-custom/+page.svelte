@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Input from '@/components/ui/input/input.svelte';
-	import DynamicCrud from '../../components/DynamicCRUD.svelte';
+	import DynamicCrud from '../../../components/DynamicCRUD.svelte';
 
 	let fields: DefaultType[] = [
 		{

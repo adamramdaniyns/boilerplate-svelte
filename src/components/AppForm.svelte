@@ -1,9 +1,18 @@
 <script lang="ts">
+	import { showToast } from '../stores/toast';
 	import AppInput from './AppInput.svelte';
 
 	export let fields: DefaultType[] = [];
 	export let formTitle = 'Form Title';
-	export let onSubmit: () => Promise<void> = () => Promise.resolve();
+	export let onSubmit: (
+		values: any
+	) => Promise<{
+		success: boolean;
+		data?: unknown;
+		error?: string;
+		message?: string;
+		description?: string;
+	}> = () => Promise.resolve({ success: true });
 	export let submitButtonText = 'Submit';
 	export let canSubmit = true;
 
@@ -30,17 +39,21 @@
 			return;
 		}
 
-		try {
-			loading = true;
-			await onSubmit();
-		} catch (error: unknown) {
-			console.error('Form submission failed:', error);
+		const values = fields.reduce((acc, field) => {
+			acc[field.key] = field.value;
+			return acc;
+		}, {} as Record<string, any>);
 
-			if (error instanceof Error) {
-				error = error.message;
+		try {
+			const res = await onSubmit(values);
+			if (res.success) {
+				showToast(res.message || 'Login Success', res.description || '', 'success');
+				fields = fields.map((f) => ({ ...f, value: '' }));
 			} else {
-				error = 'An unexpected error occurred.';
+				showToast(res.message || 'Login Failed', res.error || 'An error occurred', 'error');
 			}
+		} catch (e) {
+			showToast('Login Failed', String(e), 'error');
 		} finally {
 			loading = false;
 		}

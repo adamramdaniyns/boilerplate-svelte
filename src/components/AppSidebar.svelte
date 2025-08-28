@@ -5,10 +5,23 @@
 	import { Rocket, User, CreditCard, Bell, LogOut, Package2, ChevronRight, HomeIcon } from '@lucide/svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import AppLink from './AppLink.svelte';
 	import NavLink from './NavLink.svelte';
+	import { showToast } from '../stores/toast';
+	import { goto } from '$app/navigation';
+
+	async function handleLogout() {
+		try {
+			await fetch('/api/auth/logout', {
+				method: 'POST'
+			});
+			goto('/signin');
+			showToast('Success', 'Logged out successfully', 'success');
+		} catch (error) {
+			showToast('Error', 'Failed to log out', 'error');
+		}
+	}
 
 	// Menu items.
 	const items = [
@@ -136,7 +149,7 @@
 						Notifications
 					</Dropdown.DropdownMenuItem>
 					<Dropdown.DropdownMenuSeparator />
-					<Dropdown.DropdownMenuItem>
+					<Dropdown.DropdownMenuItem onclick={handleLogout}>
 						<LogOut class="mr-2 h-4 w-4" />
 						Log out
 					</Dropdown.DropdownMenuItem>
@@ -270,7 +283,7 @@
 						Notifications
 					</Dropdown.DropdownMenuItem>
 					<Dropdown.DropdownMenuSeparator />
-					<Dropdown.DropdownMenuItem>
+					<Dropdown.DropdownMenuItem onclick={handleLogout}>
 						<LogOut class="mr-2 h-4 w-4" />
 						Log out
 					</Dropdown.DropdownMenuItem>

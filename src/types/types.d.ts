@@ -38,3 +38,15 @@ interface ResponseStack extends Record<string, unknown> {
 	hasNextPage: boolean;
 	isLoading: boolean;
 };
+
+
+// Define the App namespace
+declare namespace App {
+  interface Locals {
+    user: {
+      username: string;
+      email: string;
+      // add more user properties as needed
+    } | null;
+  }
+}
