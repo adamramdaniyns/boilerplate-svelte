@@ -14,7 +14,7 @@
 </svelte:head>
 
 <QueryClient>
-	<main class="w-full px-2">
+	<main class="w-full">
 		{@render children?.()}
 	</main>
 	<AppToast />
