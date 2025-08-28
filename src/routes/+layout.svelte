@@ -5,6 +5,8 @@
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import AppSidebar from '../components/AppSidebar.svelte';
 	import QueryClient from '../hooks/QueryClient.svelte';
+	import { isLoading } from '@/hooks/loading';
+	import AppLoading from '../components/AppLoading.svelte';
 
 	let { children } = $props();
 </script>
@@ -23,3 +25,9 @@
 	</Sidebar.Provider>
 	<AppToast />
 </QueryClient>
+
+{#if $isLoading}
+  <div class="fixed inset-0 z-[9998] bg-transparent cursor-not-allowed"></div>
+{/if}
+
+<AppLoading />

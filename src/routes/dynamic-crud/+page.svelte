@@ -1,11 +1,12 @@
 <script lang="ts">
 	import DynamicCrud from '../../components/DynamicCRUD.svelte';
+	import { setLoading } from '@/hooks/loading';
 
 	let fields: DefaultType[] = [
 		{
 			label: 'Name',
 			type: 'text',
-			placeholder: 'Enter name',
+			placeholder: 'Enter your name',
 			id: 'name',
 			key: 'name',
 			value: '',
@@ -14,24 +15,58 @@
 				canFilter: true
 			},
 			validation: {
-				required: false
+				required: true
 			}
 		},
 		{
-			label: "Year",
-			type: "text",
-			placeholder: "Enter the year",
-			id: "year",
-			key: "year",
-			value: "",
-			errorMessage: "",
+			label: 'Price',
+			type: 'numeric',
+			placeholder: 'Enter the price',
+			id: 'price',
+			key: 'price',
+			value: '',
+			errorMessage: '',
 			options: {
-				canFilter: true,
-				hideTable: true
+				canFilter: true
 			},
 			validation: {
-				required: false
+				required: true
 			}
+		},
+		{
+			label: 'Date',
+			type: 'date',
+			placeholder: 'Select the date',
+			id: 'date',
+			key: 'date',
+			value: '',
+			errorMessage: '',
+			options: {
+				canFilter: true
+			},
+			validation: {
+				required: true
+			}
+		},
+		{
+			label: 'Category',
+			type: 'select',
+			placeholder: 'Select a category',
+			id: 'category',
+			key: 'category',
+			value: '',
+			errorMessage: '',
+			options: {
+				canFilter: true
+			},
+			validation: {
+				required: true
+			},
+			datas: [
+				{ label: 'Category 1', value: 'category1' },
+				{ label: 'Category 2', value: 'category2' },
+				{ label: 'Category 3', value: 'category3' }
+			]
 		}
 	];
 
@@ -42,21 +77,25 @@
 
 	let data: any = [];
 
-	async function handleSubmit(values: formValue, refreshData: () => void): Promise<{
+	async function handleSubmit(
+		values: formValue,
+		refreshData: () => void
+	): Promise<{
 		success: boolean;
 		data?: unknown;
 		error?: string;
 		message?: string;
 		description?: string;
 	}> {
-
 		const formBody = {
 			...values,
 			data: {
 				year: values.year
 			}
-		}
+		};
 
+		// this for global loading
+		setLoading(true, 'Submitting...');
 		const res = await fetch('/api/examples', {
 			method: 'POST',
 			headers: {
@@ -86,23 +125,30 @@
 			};
 		}
 
+		setLoading(false);
 		refreshData();
 		return {
 			success: true,
 			data: values,
-			message: data.message || 'Form submitted successfully',
+			message: data.message || 'Form submitted successfully'
 		};
 	}
 
-	async function handleUpdate(id: string | number | null, values: formValue, refreshData: () => void) {
+	async function handleUpdate(
+		id: string | number | null,
+		values: formValue,
+		refreshData: () => void
+	) {
 		const formBody = {
 			...values,
 			id: id,
 			data: {
 				year: values.year as string
 			}
-		}
+		};
 
+		// this for global loading
+		setLoading(true, 'Updating...');
 		const res = await fetch(`/api/examples`, {
 			method: 'PUT',
 			headers: {
@@ -132,15 +178,19 @@
 			};
 		}
 
+		setLoading(false);
 		refreshData();
 		return {
 			success: true,
 			data: values,
-			message: data.message || 'Form updated successfully',
+			message: data.message || 'Form updated successfully'
 		};
 	}
 
-	async function handleDelete(id: string | number | null, refreshData: () => void): Promise<{
+	async function handleDelete(
+		id: string | number | null,
+		refreshData: () => void
+	): Promise<{
 		success: boolean;
 		data?: unknown;
 		error?: string;
@@ -155,6 +205,8 @@
 			};
 		}
 
+		// this for global loading
+		setLoading(true, 'Deleting...');
 		const res = await fetch(`/api/examples`, {
 			method: 'DELETE',
 			headers: {
@@ -175,6 +227,7 @@
 
 		const responseData = await res.json();
 
+		setLoading(false);
 		refreshData();
 		return {
 			success: true,
@@ -207,11 +260,11 @@
 			detail: false // custom component for detail action
 		}}
 		{data}
-		formTitle="Login Form"
+		formTitle="Form"
 		onCreateSubmit={handleSubmit}
 		onUpdateSubmit={handleUpdate}
 		onDeleteSubmit={handleDelete}
-		submitButtonText="Login"
+		submitButtonText="Save"
 		on:rowSelect={(event) => {
 			// on this event
 			// you can get selected row data from <DynamicCrud />

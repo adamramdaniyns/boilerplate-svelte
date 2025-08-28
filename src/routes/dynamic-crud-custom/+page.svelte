@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Input from '@/components/ui/input/input.svelte';
 	import DynamicCrud from '../../components/DynamicCRUD.svelte';
 
 	let fields: DefaultType[] = [
@@ -8,6 +9,36 @@
 			placeholder: 'Enter your name',
 			id: 'name',
 			key: 'name',
+			value: '',
+			errorMessage: '',
+			options: {
+				canFilter: true
+			},
+			validation: {
+				required: false
+			}
+		},
+		{
+			label: 'Price',
+			type: 'numeric',
+			placeholder: 'Enter the price',
+			id: 'price',
+			key: 'price',
+			value: '',
+			errorMessage: '',
+			options: {
+				canFilter: true
+			},
+			validation: {
+				required: false
+			}
+		},
+		{
+			label: 'Date',
+			type: 'date',
+			placeholder: 'Select the date',
+			id: 'date',
+			key: 'date',
 			value: '',
 			errorMessage: '',
 			options: {
@@ -140,7 +171,7 @@
 						type={field.type}
 						id={field.id}
 						placeholder={field.placeholder}
-						bind:value={name}
+						bind:value={field.value}
 					/>
 					{#if field.errorMessage}
 						<p class="mt-1 text-sm text-red-500">{field.errorMessage}</p>
@@ -175,12 +206,11 @@
 			{#each fields as field (field.id)}
 				<div class="mb-4">
 					<label class="mb-1 block text-sm font-medium" for={field.id}>{field.label}</label>
-					<input
-						class="w-full rounded-md border border-gray-300 p-2"
+					<Input
 						type={field.type}
 						id={field.id}
 						placeholder={field.placeholder}
-						bind:value={name}
+						value={field.value}
 					/>
 					{#if field.errorMessage}
 						<p class="mt-1 text-sm text-red-500">{field.errorMessage}</p>

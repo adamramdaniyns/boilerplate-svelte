@@ -8,12 +8,14 @@
 	import * as DropdownMenu from '@/components/ui/dropdown-menu';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { createEventDispatcher } from 'svelte';
-	import { SortAscIcon, SortDescIcon } from '@lucide/svelte';
+	import { Loader2, SortAscIcon, SortDescIcon } from '@lucide/svelte';
 	import { createSvelteTable, FlexRender } from '@/components/ui/data-table';
 	import { getCoreRowModel, type RowSelectionState } from '@tanstack/table-core';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { writable } from 'svelte/store';
 	import { Checkbox } from '$lib/components/ui/checkbox';
+	import AppDatePicker from './AppDatePicker.svelte';
+	import AppComboBox from './AppComboBox.svelte';
 
 	// dispatch
 	const dispatch = createEventDispatcher();
@@ -174,7 +176,10 @@
 	}
 
 	function handleDelete() {
-		if (canDelete && selectedRowId !== null && !canMultiple || canMultiple && selectedRowIds.length > 0) {
+		if (
+			(canDelete && selectedRowId !== null && !canMultiple) ||
+			(canMultiple && selectedRowIds.length > 0)
+		) {
 			if (customComponent.delete) return onDelete(selectedRowId);
 			openDeleteModal = true;
 		}
@@ -194,6 +199,8 @@
 	function handleCloseModal(type: 'create' | 'update' | 'delete' | 'detail') {
 		if (type === 'create') {
 			openCreateModal = false;
+			// remove value
+			fields = fields.map((f) => ({ ...f, value: '' }));
 		} else if (type === 'update') {
 			openUpdateModal = false;
 			selectedRowId = null;
@@ -242,6 +249,13 @@
 	}
 
 	async function handleSubmitCreate() {
+		// format to date when type is date
+		fields.forEach((f) => {
+			if (f.type === 'date') {
+				f.value = new Date(f.value).toISOString();
+			}
+		});
+
 		const isHasError = validation();
 		if (isHasError) return;
 
@@ -267,6 +281,13 @@
 
 	async function handleSubmitUpdate(id: string | number | null) {
 		if (id === null) return;
+
+		// format to date when type is date
+		fields.forEach((f) => {
+			if (f.type === 'date') {
+				f.value = new Date(f.value).toISOString();
+			}
+		});
 
 		// validate fields
 		const isHasError = validation();
@@ -348,7 +369,15 @@
 				.map((field) => ({
 					accessorKey: field.key,
 					header: field.label,
-					cell: (props: { getValue: () => unknown }) => props.getValue(),
+					cell: (props: { getValue: () => unknown }) => {
+						if (field.type === 'numeric') {
+							return formatNumber(props.getValue() as number);
+						}
+						if (field.type === 'date') {
+							return formatDate(props.getValue());
+						}
+						return props.getValue();
+					},
 					sortable: true
 				}))
 		],
@@ -392,14 +421,31 @@
 		pageCount: Math.ceil(total / limit),
 		getCoreRowModel: getCoreRowModel()
 	});
+	
 
-	// $: table.setOptions((prev) => ({
-	// 	...prev,
-	// 	state: {
-	// 		...prev.state,
-	// 		rowSelection: $rowSelection
-	// 	}
-	// }));
+	// format function
+	function formatNumber(value: number): string {
+		if (value === null || value === undefined) return '-';
+		const valueNumber = Number(value);
+		return isNaN(valueNumber) ? '-' : new Intl.NumberFormat('en-US').format(valueNumber);
+	}
+
+	function formatDate(value: any): string {
+		if (!value) return '-';
+		const dateObj = value instanceof Date ? value : new Date(value);
+		if (isNaN(dateObj.getTime())) return '-';
+		return new Intl.DateTimeFormat('en-US').format(dateObj);
+	}
+
+	function formatCurrency(value: string | number): string {
+		const number = Number(value);
+		if (isNaN(number)) return '';
+		return new Intl.NumberFormat('en-US', {
+			style: 'currency',
+			currency: 'IDR',
+			minimumFractionDigits: 0
+		}).format(number);
+	}
 
 	function onPageChange(
 		updater:
@@ -453,7 +499,12 @@
 				{/if}
 
 				{#if canDelete && !customProcess}
-					<Button onclick={handleDelete} disabled={isLoading || !canMultiple && selectedRowId === null || canMultiple && selectedRowIds.length === 0}>
+					<Button
+						onclick={handleDelete}
+						disabled={isLoading ||
+							(!canMultiple && selectedRowId === null) ||
+							(canMultiple && selectedRowIds.length === 0)}
+					>
 						{deleteTitle}
 					</Button>
 				{/if}
@@ -550,7 +601,18 @@
 			</Table.Header>
 
 			<Table.Body>
-				{#if $tanstackQuery.isFetching}{:else if formattedRows.length > 0}
+				{#if $tanstackQuery.isFetching}
+					<Table.Row class="w-full">
+						<Table.Cell
+							colspan={table.getAllColumns().length}
+							class="h-40 w-full flex-col items-center justify-center text-center"
+						>
+							<span class="flex h-full items-center justify-center text-center">
+								<Loader2 class="size-10 animate-spin" />
+							</span>
+						</Table.Cell>
+					</Table.Row>
+				{:else if formattedRows.length > 0}
 					{#each table.getRowModel().rows as row (row.id)}
 						<Table.Row
 							class={`hover:bg-muted ${selectedRowId == row.id && 'bg-muted'}`}
@@ -575,7 +637,29 @@
 							{/each}
 						</Table.Row>
 					{/each}
-				{:else if $tanstackQuery.isSuccess && formattedRows.length === 0}{:else if $tanstackQuery.isError}{/if}
+				{:else if $tanstackQuery.isSuccess && formattedRows.length === 0}
+					<Table.Row class="w-full">
+						<Table.Cell
+							colspan={table.getAllColumns().length}
+							class="h-40 w-full flex-col items-center justify-center text-center"
+						>
+							<span class="flex h-full items-center justify-center text-center">
+								No data available
+							</span>
+						</Table.Cell>
+					</Table.Row>
+				{:else if $tanstackQuery.isError}
+					<Table.Row class="w-full">
+						<Table.Cell
+							colspan={table.getAllColumns().length}
+							class="h-40 w-full flex-col items-center justify-center text-center"
+						>
+							<span class="flex h-full items-center justify-center text-center">
+								{$tanstackQuery.error.message || 'An error occurred while fetching data.'}
+							</span>
+						</Table.Cell>
+					</Table.Row>
+				{/if}
 			</Table.Body>
 		</Table.Root>
 	</div>
@@ -652,13 +736,27 @@
 					{#each fields as field}
 						<div class="grid grid-cols-4 items-center gap-4">
 							<Label for={field.id as string} class="text-right">{field.label}</Label>
-							<Input
-								id={field.id as string}
-								bind:value={field.value}
-								type={field.type}
-								class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
-								placeholder={field.label}
-							/>
+
+							{#if field.type === 'date'}
+								<AppDatePicker bind:value={field.value} />
+
+							{:else if field.type === 'select'}
+								<AppComboBox bind:value={field.value} datas={field.datas} placeholder={field.placeholder} />
+							{:else}
+								<Input
+									id={field.id as string}
+									bind:value={field.value}
+									type={field.type}
+									class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
+									placeholder={field.label}
+									oninput={(e) => {
+										if (field.type === 'numeric') {
+											const raw = (e.target as HTMLInputElement).value.replace(/[^\d]/g, '');
+											field.value = raw ? formatCurrency(raw) : '';
+										}
+									}}
+								/>
+							{/if}
 						</div>
 						{#if field.errorMessage}
 							<p class="text-right text-sm text-red-500">{field.errorMessage}</p>
@@ -703,13 +801,25 @@
 					{#each fields as field}
 						<div class="grid grid-cols-4 items-center gap-4">
 							<Label for={field.id as string} class="text-right">{field.label}</Label>
-							<Input
-								id={field.id as string}
-								bind:value={field.value}
-								type={field.type}
-								class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''}`}
-								placeholder={field.label}
-							/>
+							{#if field.type === 'date'}
+								<div class="">
+									<AppDatePicker bind:value={field.value} />
+								</div>
+							{:else}
+								<Input
+									id={field.id as string}
+									bind:value={field.value}
+									type={field.type}
+									class={`col-span-3 ${field.errorMessage ? 'border-red-500' : ''} w-full`}
+									placeholder={field.label}
+									oninput={(e) => {
+										if (field.type === 'numeric') {
+											const raw = (e.target as HTMLInputElement).value.replace(/[^\d]/g, '');
+											field.value = raw ? formatCurrency(raw) : '';
+										}
+									}}
+								/>
+							{/if}
 						</div>
 						{#if field.errorMessage}
 							<p class="text-right text-sm text-red-500">{field.errorMessage}</p>
@@ -751,15 +861,17 @@
 							canMultiple
 								? selectedRowIds
 								: typeof selectedRowId === 'string'
-								? selectedRowId
-								: selectedRowId !== null
-								? String(selectedRowId)
-								: '',
+									? selectedRowId
+									: selectedRowId !== null
+										? String(selectedRowId)
+										: '',
 							refreshData
 						);
 					}}
 					variant="destructive"
-					disabled={isLoading || (!canMultiple && selectedRowId === null) || (canMultiple && selectedRowIds.length === 0)}
+					disabled={isLoading ||
+						(!canMultiple && selectedRowId === null) ||
+						(canMultiple && selectedRowIds.length === 0)}
 				>
 					Delete
 				</Button>
@@ -782,7 +894,20 @@
 				{#each fields as field}
 					<div class="grid grid-cols-4 items-center gap-4">
 						<Label for={field.id as string} class="text-right">{field.label}</Label>
-						<p class="col-span-3">{selectedRow ? selectedRow[field.key] : 'N/A'}</p>
+
+						{#if field.type === 'date'}
+							<p class="col-span-3">
+								{selectedRow && selectedRow[field.key] ? formatDate(selectedRow[field.key]) : 'N/A'}
+							</p>
+						{:else if field.type === 'numeric'}
+							<p class="col-span-3">
+								{selectedRow && selectedRow[field.key]
+									? formatNumber(Number(selectedRow[field.key]))
+									: 'N/A'}
+							</p>
+						{:else}
+							<p class="col-span-3">{selectedRow ? selectedRow[field.key] : 'N/A'}</p>
+						{/if}
 					</div>
 				{/each}
 			</div>
