@@ -18,6 +18,7 @@ type DefaultType = {
 		pattern?: RegExp;
 		message?: [string?, string?, string?];
 	};
+	datas?: { label: string; value: string }[];
 };
 
 type Filter = {

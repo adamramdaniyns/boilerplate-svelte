@@ -47,6 +47,26 @@
 			validation: {
 				required: true
 			}
+		},
+		{
+			label: 'Category',
+			type: 'select',
+			placeholder: 'Select a category',
+			id: 'category',
+			key: 'category',
+			value: '',
+			errorMessage: '',
+			options: {
+				canFilter: true
+			},
+			validation: {
+				required: true
+			},
+			datas: [
+				{ label: 'Category 1', value: 'category1' },
+				{ label: 'Category 2', value: 'category2' },
+				{ label: 'Category 3', value: 'category3' }
+			]
 		}
 	];
 

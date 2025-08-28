@@ -15,6 +15,7 @@
 	import { writable } from 'svelte/store';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import AppDatePicker from './AppDatePicker.svelte';
+	import AppComboBox from './AppComboBox.svelte';
 
 	// dispatch
 	const dispatch = createEventDispatcher();
@@ -738,6 +739,9 @@
 
 							{#if field.type === 'date'}
 								<AppDatePicker bind:value={field.value} />
+
+							{:else if field.type === 'select'}
+								<AppComboBox bind:value={field.value} datas={field.datas} placeholder={field.placeholder} />
 							{:else}
 								<Input
 									id={field.id as string}
