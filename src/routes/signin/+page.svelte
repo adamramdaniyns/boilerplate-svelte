@@ -1,14 +1,16 @@
 <script lang="ts">
+	import { redirect } from '@sveltejs/kit';
 	import AppForm from '../../components/AppForm.svelte';
+	import { goto } from '$app/navigation';
 
 	let fields: DefaultType[] = [
 		{
-			label: 'Email',
-			type: 'email',
-			placeholder: 'Enter your email',
-			id: 'email',
+			label: 'Username',
+			type: 'text',
+			placeholder: 'Enter your username',
+			id: 'username',
 			value: '',
-            key: 'email',
+            key: 'username',
 			errorMessage: ''
 		},
 		{
@@ -22,11 +24,32 @@
 		}
 	];
 
-	async function handleSubmit() {
-		console.log(
-			'Form submitted with values:',
-			fields.map((field) => ({ [field.label]: field.value }))
-		);
+	async function handleSubmit(values: { username: string; password: string }) {
+		try {
+			await fetch('/api/auth/login', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					username: values.username,
+					password: values.password
+				})
+			});
+
+			
+			goto('/')
+			return {
+				success: true,
+				message: 'Login Success'
+			};
+		} catch (error) {
+			console.error('Error during form submission:', error);
+			return {
+				success: false,
+				message: 'An error occurred during login. Please try again.'
+			};
+		}
 	}
 </script>
 

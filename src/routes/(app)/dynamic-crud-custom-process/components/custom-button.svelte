@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Button from "@/components/ui/button/button.svelte";
-	import { showToast } from "../../../stores/toast";
+	import { showToast } from "../../../../stores/toast";
 
     /**
      * props will be passed from dynamicCrud component

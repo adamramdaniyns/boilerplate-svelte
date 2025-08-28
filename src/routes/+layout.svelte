@@ -2,8 +2,6 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import AppToast from '../components/AppToast.svelte';
-	import * as Sidebar from '$lib/components/ui/sidebar';
-	import AppSidebar from '../components/AppSidebar.svelte';
 	import QueryClient from '../hooks/QueryClient.svelte';
 	import { isLoading } from '@/hooks/loading';
 	import AppLoading from '../components/AppLoading.svelte';
@@ -16,18 +14,14 @@
 </svelte:head>
 
 <QueryClient>
-	<Sidebar.Provider>
-		<AppSidebar />
-		<main class="w-full px-2">
-			<Sidebar.Trigger />
-			{@render children?.()}
-		</main>
-	</Sidebar.Provider>
+	<main class="w-full px-2">
+		{@render children?.()}
+	</main>
 	<AppToast />
 </QueryClient>
 
 {#if $isLoading}
-  <div class="fixed inset-0 z-[9998] bg-transparent cursor-not-allowed"></div>
+	<div class="fixed inset-0 z-[9998] cursor-not-allowed bg-transparent"></div>
 {/if}
 
 <AppLoading />

@@ -1,4 +1,4 @@
-import type { HandleServerError } from '@sveltejs/kit';
+import { type HandleServerError, type Handle, redirect } from '@sveltejs/kit';
 
 export const handleError: HandleServerError = ({ error, event, status }) => {
   console.error(`### hooks.server.ts: handleError triggered for ${event.url.pathname}`);
@@ -28,4 +28,34 @@ export const handleError: HandleServerError = ({ error, event, status }) => {
     message: clientErrorMessage,
     status: clientErrorCode,
   };
+};
+
+export const handle: Handle = async ({ event, resolve }) => {
+  const token = event.cookies.get("token");
+  
+  const publicRoutes = ['/signin', '/signup', '/forgot-password', '/reset-password'];
+
+  const isPublicApi = event.url.pathname.startsWith("/api/auth");
+
+  if (token) {
+    // here u can fetch user data
+
+    if(publicRoutes.includes(event.url.pathname)) {
+      // If the user is authenticated and trying to access a public route,
+      // redirect to home /
+      throw redirect(303, '/');
+    }
+
+    event.locals.user = {
+      username: "adam",
+      email: "adam@mail.com"
+    };
+  } else {
+    event.locals.user = null
+    if (!publicRoutes.includes(event.url.pathname) && !isPublicApi) {
+        throw redirect(303, '/signin');
+    }
+  }
+
+  return resolve(event);
 };
