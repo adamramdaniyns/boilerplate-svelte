@@ -7,7 +7,8 @@
 	let password = '';
 	let isLoading = false;
 
-	async function handleSubmit() {
+	async function handleSubmit(e: Event) {
+		e.preventDefault();
 		try {
 			isLoading = true;
 			await fetch('/api/auth/login', {
@@ -49,7 +50,7 @@
             <h2 class="mb-2 text-3xl font-bold text-slate-800">Login</h2>
             <p class="mb-8 text-slate-500">Please sign in to your account.</p>
 
-            <form class="space-y-6">
+            <form class="space-y-6" on:submit={handleSubmit}>
                 <div>
                     <label for="username" class="block text-sm font-medium text-slate-600">Username</label>
                     <div class="relative mt-1">
@@ -94,9 +95,8 @@
 
                 <div>
                     <button
-                        type="button"
+                        type="submit"
 						disabled={isLoading}
-						onclick={() => handleSubmit()}
                         class="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                     >
                         {isLoading ? 'Loading...' : 'Login'}
