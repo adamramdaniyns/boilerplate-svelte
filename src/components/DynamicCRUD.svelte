@@ -251,7 +251,7 @@
 	async function handleSubmitCreate() {
 		// format to date when type is date
 		fields.forEach((f) => {
-			if (f.type === 'date') {
+			if (f.type === 'date' && f.value) {
 				f.value = new Date(f.value).toISOString();
 			}
 		});
@@ -284,7 +284,7 @@
 
 		// format to date when type is date
 		fields.forEach((f) => {
-			if (f.type === 'date') {
+			if (f.type === 'date' && f.value) {
 				f.value = new Date(f.value).toISOString();
 			}
 		});
