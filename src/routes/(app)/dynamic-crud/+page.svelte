@@ -1,6 +1,7 @@
 <script lang="ts">
 	import DynamicCrud from '../../../components/DynamicCRUD.svelte';
 	import { setLoading } from '@/hooks/loading';
+	import { fetcherClient } from '../../../helpers/fetcher.client';
 
 	let fields: DefaultType[] = [
 		{
@@ -242,9 +243,18 @@
 		if (filter?.key) {
 			filterParams = `&key=${filter.key}&keywords=${encodeURIComponent(filter.keyWords)}`;
 		}
-		const res = await fetch(`/api/examples?page=${page}&limit=${limit}${filterParams}`);
-		if (!res.ok) throw new Error('Network response was not ok');
-		return await res.json();
+		const res = await fetcherClient({
+			method: 'GET',
+			url: `/api/examples`,
+			queryParams: {
+				page: page?.toString() || "1",
+				limit: limit?.toString() || "10",
+				...(filter?.key
+					? { key: filter.key, keywords: filter.keyWords }
+					: {})
+			}
+		});
+		return res;	
 	};
 </script>
 
