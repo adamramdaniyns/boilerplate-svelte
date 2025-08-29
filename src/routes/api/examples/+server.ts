@@ -1,10 +1,10 @@
 import { json } from '@sveltejs/kit';
+import { fetcherServer } from '../../../helpers/fetcher.server.js';
 
-const API_URL = 'https://api.restful-api.dev/objects'
+const API_URL = '/objects'
 
 // GET EXAMPLES
-export async function GET({ url }) {
-	//https://api.restful-api.dev/objects
+export async function GET({ url, cookies }) {
 	const query = url.searchParams;
 	
 	const page = query.get('page') || '1';
@@ -12,8 +12,19 @@ export async function GET({ url }) {
 	const key = query.get('key') || '';
 	const keywords = query.get('keywords') || '';
 
-	const response = await fetch(API_URL);
-	let data = await response.json();
+	const response = await fetcherServer({
+		method: 'GET',
+		url: API_URL,
+		queryParams: {
+			page,
+			limit,
+			key,
+			keywords
+		},
+		cookies
+	});
+	
+	let data = response;
 	
 	if (key && keywords) {
 		data = data.filter((item: Record<string, unknown>) =>
