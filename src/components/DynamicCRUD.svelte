@@ -76,6 +76,7 @@
 	// Custom process
 	export let customProcess = false;
 	export let processComponent: any | null = null;
+	export let customActions: any | null = null;
 
 	export let submitButtonText = 'Submit';
 	export let canCreate = true;
@@ -125,7 +126,7 @@
 
 	// createquery for main fetching data
 	let tanstackQuery = createQuery<ResponseStack>({
-		queryKey: [dataKey, page, limit, sorting],
+		queryKey: [dataKey],
 		queryFn: async () => await onGetData(page, limit, filter),
 		throwOnError: true,
 		retry: 1,
@@ -480,6 +481,11 @@
 					{canMultiple}
 					{selectedRows}
 					{fields}
+					{onCreate}
+					{onUpdate}
+					{onDelete}
+					{onDetail}
+					{...customActions}
 				/>
 			{:else}
 				<div>No custom process component provided</div>
@@ -565,7 +571,7 @@
 		</div>
 	</div>
 
-	<div class="rounded-md border">
+	<div class="rounded-sm border">
 		<Table.Root>
 			<Table.Header class="[&:has([role=checkbox])]:pl-3">
 				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}

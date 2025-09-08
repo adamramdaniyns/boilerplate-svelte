@@ -44,8 +44,9 @@ interface ResponseStack extends Record<string, unknown> {
 declare namespace App {
   interface Locals {
     user: {
-      username: string;
-      email: string;
+      username?: string;
+      email?: string;
+      id: string;
       // add more user properties as needed
     } | null;
   }
